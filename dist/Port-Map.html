@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Port Map · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html" class="active">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Port Map</h1>
+<p><strong>Canonical host-port assignments for the laptop MVP stack</strong> used by <a href="../muxcore-installer/"><code>muxcore-installer</code></a> and the <code>_mvp</code> reference lab. Prefer these numbers over older README snippets that still mention historical defaults.</p>
+<p>Sources of truth for what actually starts:</p>
+<ul>
+<li>Installer host: <a href="../muxcore-installer/up.sh"><code>muxcore-installer/up.sh</code></a></li>
+<li>Lab host: <a href="../_mvp/run-host.sh"><code>_mvp/run-host.sh</code></a></li>
+<li>Compose publish map: <a href="../_mvp/docker-compose.yml"><code>_mvp/docker-compose.yml</code></a></li>
+</ul>
+<p>Env override names match <a href="Configuration-Reference#sidecar-listen--client-addresses-ports">Configuration Reference — sidecar listen addresses</a>.</p>
+<hr>
+<h2>How to read this map</h2>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Host port</strong></td>
+<td>Port on <code>127.0.0.1</code> for the installer / <code>_mvp</code> host stack (and the default Compose <em>host</em> publish).</td>
+</tr>
+<tr>
+<td><strong>Container / listen</strong></td>
+<td>Address the process binds inside Compose (often the same as host; <code>api-rest</code> HTTP differs).</td>
+</tr>
+<tr>
+<td><strong>Override env</strong></td>
+<td>Primary env var that changes the listen address.</td>
+</tr>
+</tbody></table>
+<p>Unless noted, gRPC and HTTP are separate listeners. Modules without a public HTTP UI still announce a gRPC listen addr to the mesh (<code>ModuleInfo.HttpAddr</code> historically names that gRPC endpoint).</p>
+<hr>
+<h2>Core loom</h2>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Protocol</th>
+<th>Host port</th>
+<th>Listen (default)</th>
+<th>Override</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>muxcored</code></td>
+<td>HTTP</td>
+<td><strong>8080</strong></td>
+<td><code>:8080</code></td>
+<td><code>MUXCORE_SERVER_ADDR</code> / <code>server.addr</code></td>
+</tr>
+<tr>
+<td><code>muxcored</code></td>
+<td>gRPC mesh</td>
+<td><strong>9090</strong></td>
+<td><code>:9090</code></td>
+<td><code>grpc.addr</code> / <code>MUXCORE_MESH_ADDR</code> (clients)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>MVP modules (installer + <code>_mvp</code>)</h2>
+<p>These are started by <code>muxcore-installer/up.sh</code> (fixture-only product path). <code>_mvp/run-host.sh</code> uses the same ports; Compose publishes the same host numbers unless an env override is set.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Protocol</th>
+<th>Host port</th>
+<th>Module binary default</th>
+<th>Override env</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>api-rest</code></td>
+<td>HTTP</td>
+<td><strong>18080</strong></td>
+<td><code>:8080</code></td>
+<td><code>API_REST_HTTP_ADDR</code></td>
+<td><strong>Remapped</strong> so it does not collide with core <code>:8080</code>. Compose: host <code>18080</code> → container <code>8080</code>.</td>
+</tr>
+<tr>
+<td><code>api-rest</code></td>
+<td>gRPC</td>
+<td><strong>9400</strong></td>
+<td><code>:9400</code></td>
+<td><code>API_REST_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth-local</code></td>
+<td>gRPC</td>
+<td><strong>9403</strong></td>
+<td><code>:9403</code></td>
+<td><code>AUTH_GRPC_ADDR</code></td>
+<td>Bootstrap / <code>authctl</code></td>
+</tr>
+<tr>
+<td><code>auth-local</code></td>
+<td>HTTP</td>
+<td><strong>9401</strong></td>
+<td><code>:9401</code></td>
+<td><code>AUTH_HTTP_ADDR</code></td>
+<td>Login UI, WebAuthn</td>
+</tr>
+<tr>
+<td><code>database-sqlite</code></td>
+<td>gRPC</td>
+<td><strong>9700</strong></td>
+<td><code>:9700</code></td>
+<td><code>DATABASE_GRPC_ADDR</code></td>
+<td>Usually not published in Compose</td>
+</tr>
+<tr>
+<td><code>secrets-file</code></td>
+<td>gRPC</td>
+<td><strong>9550</strong></td>
+<td><code>:9550</code></td>
+<td><code>SECRETS_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>encryption-aesgcm</code></td>
+<td>gRPC</td>
+<td><strong>9601</strong></td>
+<td><code>:9601</code></td>
+<td><code>ENCRYPTION_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>call-policy-default</code></td>
+<td>gRPC</td>
+<td><strong>9101</strong></td>
+<td><code>:9101</code></td>
+<td><code>CALL_POLICY_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>publish-policy-default</code></td>
+<td>gRPC</td>
+<td><strong>9102</strong></td>
+<td><code>:9102</code></td>
+<td><code>PUBLISH_POLICY_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>health-monitor</code></td>
+<td>gRPC</td>
+<td><strong>9202</strong></td>
+<td><code>:9202</code></td>
+<td><code>HEALTH_MONITOR_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>health-monitor</code></td>
+<td>HTTP</td>
+<td><strong>9203</strong></td>
+<td><code>:9203</code></td>
+<td><code>HEALTH_MONITOR_HTTP_ADDR</code></td>
+<td><code>/status</code> aggregate</td>
+</tr>
+<tr>
+<td><code>admin-ui</code></td>
+<td>HTTP</td>
+<td><strong>8082</strong></td>
+<td><code>:8080</code></td>
+<td><code>ADMIN_UI_ADDR</code></td>
+<td><strong>Remapped</strong> off core/api-rest <code>:8080</code>. In auth-local redirect allowlist.</td>
+</tr>
+<tr>
+<td><code>metadata-tmdb</code></td>
+<td>gRPC</td>
+<td><strong>9411</strong></td>
+<td><code>:9411</code></td>
+<td><code>METADATA_GRPC_ADDR</code></td>
+<td>Was <code>:9410</code> historically (see remaps)</td>
+</tr>
+<tr>
+<td><code>media-movies</code></td>
+<td>gRPC</td>
+<td><strong>9420</strong></td>
+<td><code>:9420</code></td>
+<td><code>MOVIES_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>media-movies</code></td>
+<td>HTTP</td>
+<td><strong>9430</strong></td>
+<td><code>:9430</code></td>
+<td><code>MOVIES_HTTP_ADDR</code></td>
+<td>Artwork / HTTP helpers</td>
+</tr>
+<tr>
+<td><code>media-tvshows</code></td>
+<td>gRPC</td>
+<td><strong>9440</strong></td>
+<td><code>:9440</code></td>
+<td><code>TVSHOWS_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>media-tvshows</code></td>
+<td>HTTP</td>
+<td><strong>9450</strong></td>
+<td><code>:9450</code></td>
+<td><code>TVSHOWS_HTTP_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>notification-default</code></td>
+<td>gRPC</td>
+<td><strong>9441</strong></td>
+<td><code>:9441</code></td>
+<td><code>NOTIFY_GRPC_ADDR</code></td>
+<td><strong>Remapped</strong> off tvshows <code>:9440</code></td>
+</tr>
+<tr>
+<td><code>media-automation</code></td>
+<td>gRPC</td>
+<td><strong>9460</strong></td>
+<td><code>:9460</code></td>
+<td><code>AUTOMATION_GRPC_ADDR</code></td>
+<td>Owns <code>:9460</code></td>
+</tr>
+<tr>
+<td><code>downloader-native-torrent</code></td>
+<td>gRPC</td>
+<td><strong>9461</strong></td>
+<td><code>:9461</code></td>
+<td><code>DOWNLOADER_GRPC_ADDR</code></td>
+<td><strong>Remapped</strong> off automation <code>:9460</code></td>
+</tr>
+<tr>
+<td><code>media-scanner</code></td>
+<td>gRPC</td>
+<td><strong>9470</strong></td>
+<td><code>:9470</code></td>
+<td><code>SCANNER_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>jellyfin</code></td>
+<td>gRPC</td>
+<td><strong>9475</strong></td>
+<td><code>:9475</code></td>
+<td><code>JELLYFIN_GRPC_ADDR</code></td>
+<td>Soft-unconfigured OK</td>
+</tr>
+<tr>
+<td><code>jellyfin</code></td>
+<td>HTTP</td>
+<td><strong>8475</strong></td>
+<td><code>:8475</code></td>
+<td><code>JELLYFIN_HTTP_ADDR</code></td>
+<td><code>/healthz</code></td>
+</tr>
+<tr>
+<td><code>request-media</code></td>
+<td>gRPC</td>
+<td><strong>9481</strong></td>
+<td><code>:9481</code></td>
+<td><code>REQUEST_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>request-media</code></td>
+<td>HTTP</td>
+<td><strong>9380</strong></td>
+<td><code>:9380</code></td>
+<td><code>REQUEST_HTTP_ADDR</code></td>
+<td>Consumer / BFF</td>
+</tr>
+<tr>
+<td><code>media-root-folders</code></td>
+<td>gRPC</td>
+<td><strong>9540</strong></td>
+<td><code>:9540</code></td>
+<td><code>ROOTS_GRPC_ADDR</code></td>
+<td></td>
+</tr>
+</tbody></table>
+<h3>Optional consumer UI</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Protocol</th>
+<th>Host port</th>
+<th>Override</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>media-ui</code> / <code>mediauiprox</code></td>
+<td>HTTP</td>
+<td><strong>5173</strong></td>
+<td><code>MEDIA_UI_LISTEN</code> / <code>MEDIA_UI_HTTP_PORT</code></td>
+<td>Installer off unless <code>MVP_ENABLE_MEDIA_UI≠0</code> + dist</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Opt-in acquisition / analysis peers</h2>
+<p>Not started by the installer fixture path. <code>_mvp</code> starts <code>indexer-piratebay</code> only when <code>PIRATEBAY_API_BASE</code> is set. Listed here so multi-module hosts do not reuse their ports.</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Protocol</th>
+<th>Canonical port</th>
+<th>Override</th>
+<th>Collision note</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>indexer-piratebay</code></td>
+<td>gRPC</td>
+<td><strong>9485</strong></td>
+<td><code>PIRATEBAY_GRPC_ADDR</code></td>
+<td><strong>Remapped</strong> from <code>:9480</code> (ffprobe)</td>
+</tr>
+<tr>
+<td><code>indexer-torznab</code></td>
+<td>gRPC</td>
+<td><strong>9486</strong></td>
+<td><code>TORZNAB_GRPC_ADDR</code></td>
+<td>Adjacent to piratebay</td>
+</tr>
+<tr>
+<td><code>media-ffprobe</code></td>
+<td>gRPC</td>
+<td><strong>9480</strong></td>
+<td><code>FFPROBE_GRPC_ADDR</code></td>
+<td>Keeps <code>:9480</code>; do not put piratebay here</td>
+</tr>
+<tr>
+<td><code>notification-apprise</code></td>
+<td>gRPC</td>
+<td><strong>9445</strong></td>
+<td><code>NOTIFY_GRPC_ADDR</code></td>
+<td>Alternate notifier; not co-started with default on same addr</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Remapped host ports (collision fixes)</h2>
+<p>Historical module defaults overlapped when several sidecars ran on one host. <strong>Current binary defaults and the host/installer scripts already use the remapped ports below.</strong> Treat older docs that still say the “former” value as stale.</p>
+<table>
+<thead>
+<tr>
+<th>Former default</th>
+<th>Current canonical</th>
+<th>Module that moved</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>:8080</code> (HTTP)</td>
+<td><strong><code>:18080</code></strong> (host)</td>
+<td><code>api-rest</code></td>
+<td>Core loom owns host <code>:8080</code>. Module may still default to <code>:8080</code> <em>inside</em> its process; host/Compose always remap.</td>
+</tr>
+<tr>
+<td><code>:8080</code> (HTTP)</td>
+<td><strong><code>:8082</code></strong></td>
+<td><code>admin-ui</code></td>
+<td>Same collision with core; host sets <code>ADMIN_UI_ADDR=:8082</code>.</td>
+</tr>
+<tr>
+<td><code>:9460</code> (gRPC)</td>
+<td><strong><code>:9461</code></strong></td>
+<td><code>downloader-native-torrent</code></td>
+<td><code>media-automation</code> keeps <code>:9460</code>.</td>
+</tr>
+<tr>
+<td><code>:9480</code> (gRPC)</td>
+<td><strong><code>:9485</code></strong></td>
+<td><code>indexer-piratebay</code></td>
+<td><code>media-ffprobe</code> keeps <code>:9480</code>; torznab uses <code>:9486</code>.</td>
+</tr>
+<tr>
+<td><code>:9440</code> (gRPC)</td>
+<td><strong><code>:9441</code></strong></td>
+<td><code>notification-default</code></td>
+<td><code>media-tvshows</code> gRPC keeps <code>:9440</code>.</td>
+</tr>
+<tr>
+<td><code>:9410</code> (gRPC)</td>
+<td><strong><code>:9411</code></strong></td>
+<td><code>metadata-tmdb</code></td>
+<td>Frees <code>:9410</code> for <code>auth-oidc</code> (and avoids stale “movies on 9410” examples).</td>
+</tr>
+</tbody></table>
+<p>If you run modules <strong>without</strong> the installer/<code>_mvp</code> env wrappers, set the override env vars explicitly — do not assume every published binary’s README matches this map until you verify <code>internal/module.go</code>.</p>
+<h3>Still unique on the MVP set (no remap needed)</h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Owner</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>9090</td>
+<td>core gRPC mesh</td>
+</tr>
+<tr>
+<td>9101 / 9102</td>
+<td>call-policy / publish-policy</td>
+</tr>
+<tr>
+<td>9202 / 9203</td>
+<td>health-monitor</td>
+</tr>
+<tr>
+<td>9380 / 9481</td>
+<td>request-media</td>
+</tr>
+<tr>
+<td>9400 / 9401 / 9403</td>
+<td>api-rest gRPC / auth HTTP / auth gRPC</td>
+</tr>
+<tr>
+<td>9420 / 9430</td>
+<td>media-movies</td>
+</tr>
+<tr>
+<td>9440 / 9450</td>
+<td>media-tvshows</td>
+</tr>
+<tr>
+<td>9460</td>
+<td>media-automation</td>
+</tr>
+<tr>
+<td>9470 / 9475 / 8475</td>
+<td>scanner / jellyfin</td>
+</tr>
+<tr>
+<td>9540 / 9550 / 9601 / 9700</td>
+<td>roots / secrets-file / encryption / sqlite</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Quick operator cheatsheet</h2>
+<p>Same numbers as installer <code>VIEW-ME.txt</code> / <code>_mvp</code> Endpoints:</p>
+<table>
+<thead>
+<tr>
+<th>URL / dial</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Admin UI</td>
+<td><code>http://localhost:8082</code></td>
+</tr>
+<tr>
+<td>Core health</td>
+<td><code>http://127.0.0.1:8080/health</code></td>
+</tr>
+<tr>
+<td>REST API</td>
+<td><code>http://127.0.0.1:18080</code></td>
+</tr>
+<tr>
+<td>Auth HTTP</td>
+<td><code>http://127.0.0.1:9401</code></td>
+</tr>
+<tr>
+<td>Mesh gRPC</td>
+<td><code>127.0.0.1:9090</code></td>
+</tr>
+<tr>
+<td>Health <code>/status</code></td>
+<td><code>http://127.0.0.1:9203/status</code></td>
+</tr>
+<tr>
+<td>Jellyfin bridge</td>
+<td><code>http://127.0.0.1:8475</code></td>
+</tr>
+<tr>
+<td>Consumer SPA</td>
+<td><code>http://127.0.0.1:5173</code></td>
+</tr>
+<tr>
+<td>Automation gRPC</td>
+<td><code>127.0.0.1:9460</code></td>
+</tr>
+<tr>
+<td>Downloader gRPC</td>
+<td><code>127.0.0.1:9461</code></td>
+</tr>
+<tr>
+<td>Scanner gRPC</td>
+<td><code>127.0.0.1:9470</code></td>
+</tr>
+<tr>
+<td>Indexer (opt-in)</td>
+<td><code>127.0.0.1:9485</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Related</h2>
+<ul>
+<li><a href="Configuration-Reference.html">Configuration Reference</a> — full env list</li>
+<li><a href="Getting-Started.html">Getting Started</a> — laptop install paths</li>
+<li><a href="Deployment.html">Deployment</a> — production TLS (no insecure-disable)</li>
+<li>Workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> — product checklist</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

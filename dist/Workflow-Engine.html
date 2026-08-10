@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workflow Engine · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html" class="active">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Workflow Engine</h1>
+<p><strong>Workflows (tapestries) are MuxCore&#39;s killer feature.</strong> They&#39;re multi-step automation pipelines that coordinate many modules to accomplish a goal — like acquiring a movie from request to notification — without hardcoding any step.</p>
+<blockquote>
+<p><strong>⚠️ Module-implemented, not built into core.</strong> The <code>WorkflowEngine</code> interface lives in <code>pkg/contracts/workflow.go</code>. The <strong><code>workflow-tapestry</code></strong> module implements it (optional on the default spool tag). Cron-style scheduling is separate (<code>scheduler-cron</code> / Scheduler contract).</p>
+</blockquote>
+<hr>
+<h2>What Is a Tapestry?</h2>
+<p>In the *arr world, workflows are implicit and hardcoded:</p>
+<pre><code>Sonarr: Search → Download → Move → Rename → Notify
+</code></pre>
+<p>You can&#39;t change the steps. You can&#39;t add steps. If you want subtitles fetched before import, that&#39;s a separate program (Bazarr) with its own scheduler.</p>
+<p>In MuxCore, workflows are <strong>explicit, configurable, and extensible</strong>:</p>
+<pre><code>You define: Request → Metadata → Search → Download → Verify → Extract → Analyze → Transcode → Subtitles → Import → Notify
+</code></pre>
+<p>Each step is handled by a different module. The workflow engine orchestrates — it doesn&#39;t implement any step directly.</p>
+<hr>
+<h2>A Real Example</h2>
+<p>Here&#39;s a tapestry for importing a movie:</p>
+<pre><code class="language-yaml">id: movie-request
+name: &quot;Movie Request Pipeline&quot;
+steps:
+  - name: metadata-lookup
+    handler:
+      kind: module
+      ref: metadata-tmdb
+    retry: 3
+    timeout: 30
+
+  - name: indexer-search
+    handler:
+      kind: capability
+      ref: indexer
+    retry: 2
+    timeout: 60
+    depends_on: [metadata-lookup]
+
+  - name: download
+    handler:
+      kind: module
+      ref: downloader-native-torrent
+    retry: 1
+    timeout: 0       # no timeout — downloads can take hours
+    depends_on: [indexer-search]
+
+  - name: library-import
+    handler:
+      kind: module
+      ref: media-movies
+    retry: 1
+    timeout: 60
+    depends_on: [download]
+
+  - name: notify
+    handler:
+      kind: capability
+      ref: notification
+    retry: 2
+    timeout: 10
+    depends_on: [library-import]
+</code></pre>
+<hr>
+<h2>How It Works</h2>
+<h3>Starting a Tapestry</h3>
+<pre><code class="language-go">// Discover the workflow engine via gRPC
+disc := discoveryv1.NewDiscoveryServiceClient(conn)
+resp, _ := disc.FindByCapability(ctx, &amp;discoveryv1.FindByCapabilityRequest{
+    Capability: &quot;workflow.engine&quot;,
+})
+// Use the discovered engine module
+engine := workflowv1.NewWorkflowEngineClient(conn)
+runID, err := engine.Run(ctx, &amp;workflowv1.RunRequest{
+    DefinitionName: &quot;movie-request&quot;,
+    Params: map[string]string{
+        &quot;title&quot;:   &quot;The Terminator&quot;,
+        &quot;quality&quot;: &quot;2160p&quot;,
+    },
+})
+</code></pre>
+<h3>The Engine Executes Each Step</h3>
+<pre><code>Step 1: metadata-tmdb → looks up movie details
+    ↓ success
+Step 2: indexer-prowlarr → searches for releases
+    ↓ success  
+Step 3: downloader-native-torrent → starts download, waits for completion
+    ↓ success
+Step 4: verifier-builtin → checks file integrity
+    ↓ success
+Step 5: extractor-unpackerr → unpacks archives
+    ↓ success
+Step 6: analyzer-builtin → checks codec, resolution, bitrate
+    ↓ success
+Step 7: media-transcoder (FFmpeg) → creates optimized versions
+    ↓ success
+Step 8: content-subtitle → fetches subtitles
+    ↓ success
+Step 9: media-movies → imports into library
+    ↓ success
+Step 10: notifier-discord → sends completion message
+</code></pre>
+<h3>If a Step Fails</h3>
+<pre><code>Step 4: verifier-builtin → FAILS (corrupt download)
+    ↓
+Retry 1: wait (exponential backoff) → FAILS
+    ↓
+Retry 2: wait (backoff × factor) → FAILS
+    ↓
+Retry 3: wait (capped) → FAILS
+    ↓
+Tapestry fails → notification sent → manual review
+</code></pre>
+<hr>
+<h2>Key Features</h2>
+<h3>Current (<code>workflow-tapestry</code>)</h3>
+<ul>
+<li><strong>DAG waves</strong> — <code>depends_on</code> gates readiness; all ready steps in a wave run in bounded parallel (fail-fast on hard failure)</li>
+<li><strong>Pause / Cancel gates</strong> — checked at wave boundaries and before each dispatch; Pause waits until Resume; Cancel stops and leaves status <code>cancelled</code></li>
+<li><strong>Retries with exponential backoff</strong> — <code>step.retry</code> max re-attempts; delay <code>base × 2^n</code> + jitter (cap); prefers core <code>RetryProvider</code> mesh <code>Backoff</code> when discoverable, else local fallback. Tunable via step <code>meta</code> (<code>backoff_initial_ms</code>, <code>backoff_max_ms</code>, <code>backoff_factor</code>, <code>backoff_jitter</code>)</li>
+<li><strong>Idempotency</strong> — key <code>runID:stepName</code> (override with <code>meta.idempotency_key</code>); calls core <code>IdempotencyProvider</code> over mesh (<code>Store</code> / <code>Exists</code> / <code>Result</code>); on hit skips the handler and returns cached output. Soft-fails if provider missing unless <code>meta.idempotency_required=true</code></li>
+<li><strong>Timeouts</strong> — per-step <code>timeout</code>; <code>0</code> means no timeout</li>
+<li><strong>Step I/O mapping</strong> — <code>$params.*</code> / <code>$steps.&lt;name&gt;.output.*</code> via <code>input_mapping</code></li>
+<li><strong>Control RPCs</strong> — <code>Cancel</code> / <code>Pause</code> / <code>Resume</code> / <code>Status</code> / <code>ListRuns</code></li>
+<li><strong>Seeded definitions</strong> — ships under <code>internal/definitions/</code> (see below)</li>
+</ul>
+<pre><code>metadata-lookup ─┬─→ indexer-search-1 (torrent)
+                 └─→ indexer-search-2 (usenet)
+                          │
+                    first one wins → download
+</code></pre>
+<pre><code class="language-yaml">- name: transcode
+  handler: media-transcoder
+  input_mapping:
+    source_file: &quot;$steps.download.output.filepath&quot;
+    target_quality: &quot;$params.quality&quot;
+</code></pre>
+<h3>Planned</h3>
+<p>Compensation/saga, conditional steps, and fallback handler chains (see Advanced Features below).</p>
+<hr>
+<h2>Built-In Tapestries</h2>
+<p>Default definitions ship with <code>workflow-tapestry</code> under <code>internal/definitions/</code>. Customize handlers for your module IDs. Music/book managers are not shipped yet — those runs fail until managers exist:</p>
+<table>
+<thead>
+<tr>
+<th>Tapestry</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>movie-request</code></td>
+<td>Full movie acquisition — search through import</td>
+</tr>
+<tr>
+<td><code>tv-request</code></td>
+<td>TV episode acquisition</td>
+</tr>
+<tr>
+<td><code>music-request</code></td>
+<td>Music album acquisition</td>
+</tr>
+<tr>
+<td><code>book-request</code></td>
+<td>Book acquisition</td>
+</tr>
+<tr>
+<td><code>media-transcode</code></td>
+<td>Re-encode existing media</td>
+</tr>
+<tr>
+<td><code>media-migrate</code></td>
+<td>Move media between storage providers</td>
+</tr>
+<tr>
+<td><code>media-backup</code></td>
+<td>Backup to cold storage</td>
+</tr>
+<tr>
+<td><code>library-scan</code></td>
+<td>Scan and import existing media files</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Advanced Features (Planned)</h2>
+<h3>Compensation — Undo on Failure</h3>
+<p>If step 7 fails after step 3 succeeded, the engine runs compensation handlers:</p>
+<pre><code>Step 3: download → started        [compensation: cancel download]
+Step 7: import → started          [compensation: remove partial import]
+Step 8: notify → not reached
+</code></pre>
+<h3>Conditional Steps</h3>
+<p>Skip steps based on results:</p>
+<pre><code class="language-yaml">- name: transcode
+  handler: media-transcoder
+  condition: &quot;media.codec != &#39;h264&#39;&quot;   # only transcode if not already h264
+</code></pre>
+<h3>Fallback Chains</h3>
+<p>Try handlers in order until one succeeds:</p>
+<pre><code class="language-yaml">- name: metadata-lookup
+  handlers: [metadata-tmdb, metadata-tvdb, metadata-imdb]
+</code></pre>
+<hr>
+<h2>Power Use Cases</h2>
+<h3>Intelligent Orchestration</h3>
+<ul>
+<li><strong>Move workload to idle GPU</strong> — transcoding scheduler picks the least-loaded worker</li>
+<li><strong>Auto-balance storage</strong> — move media to the provider with the most free space</li>
+<li><strong>Prioritize by popularity</strong> — recently watched media stays on fast storage</li>
+<li><strong>Predictive pre-transcoding</strong> — transcode the next episode while you&#39;re watching the current one</li>
+</ul>
+<h3>Cross-Media Awareness</h3>
+<p>A tapestry can coordinate across media types — something impossible in siloed *arr stacks:</p>
+<pre><code>User adds an anime series
+  → Checks for manga adaptation
+  → Checks for light novel source
+  → Offers to track and download all related media
+</code></pre>
+<hr>
+<h2>Workflow Engine Interface</h2>
+<pre><code class="language-go">// Defined in pkg/contracts/workflow.go
+type WorkflowEngine interface {
+    RegisterDefinition(ctx context.Context, definition TapestryDefinition) error
+    RemoveDefinition(ctx context.Context, definitionID string) error
+    GetDefinition(ctx context.Context, definitionID string) (*TapestryDefinition, error)
+    ListDefinitions(ctx context.Context) ([]TapestryDefinition, error)
+    Run(ctx context.Context, definitionID string, input map[string]any) (string, error)
+    Status(ctx context.Context, runID string) (*TapestryRun, error)
+    Cancel(ctx context.Context, runID string) error
+    Pause(ctx context.Context, runID string) error
+    Resume(ctx context.Context, runID string) error
+    ListRuns(ctx context.Context, filter *TapestryRunFilter) ([]TapestryRun, error)
+}
+</code></pre>
+<p>Key types:</p>
+<ul>
+<li><strong>TapestryDefinition</strong> — the workflow template (ID, steps, metadata)</li>
+<li><strong>TapestryStep</strong> — a single step with <code>StepHandler{Kind,Ref}</code>, retry, timeout, depends_on, input_mapping</li>
+<li><strong>TapestryRun</strong> — a running instance with status, step results, start/end times</li>
+<li><strong>StepResult</strong> — output of a completed step, passed to dependent steps</li>
+<li><strong>TapestryRunFilter</strong> — filter by status and/or definition ID</li>
+</ul>
+<p>Discovered via <code>FindByCapability(&quot;workflow.engine&quot;)</code>. The <code>workflow-tapestry</code> module implements this. If no engine module is registered, the Scheduler contract still handles cron-style tasks independently.</p>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Module-System.html">Module System</a> — modules that handle workflow steps</li>
+<li><a href="Event-System.html">Event System</a> — how step transitions are communicated</li>
+<li><a href="Writing-Modules.html">Writing Modules</a> — build a module that participates in workflows</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

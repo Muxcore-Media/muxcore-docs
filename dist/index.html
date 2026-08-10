@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html" class="active">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Welcome to MuxCore</h1>
+<p><strong>MuxCore is a media automation platform that grows with you.</strong> It starts as simple as a single app. When you&#39;re ready, scale to multiple machines, cloud storage, and custom workflows — without rebuilding or switching platforms.</p>
+<hr>
+<h2>If You Use Sonarr, Radarr, or Plex...</h2>
+<p>You already know the *arr stack: Sonarr for TV, Radarr for movies, Lidarr for music, Bazarr for subtitles, Prowlarr for indexers, qBittorrent for downloads, Plex for playback. Each one is a separate program with its own settings, its own database, and its own way of doing things.</p>
+<p><strong>MuxCore replaces all of them with one system.</strong> But it doesn&#39;t lock you into one way of working. Every feature — downloading, indexing, playback, transcoding, notifications — is a pluggable module. Want two downloaders? Add them. Want GPU transcoding on a separate machine? Add a worker there. The system adapts to your setup.</p>
+<h2>What Makes It Different</h2>
+<table>
+<thead>
+<tr>
+<th>What you&#39;re used to</th>
+<th>How MuxCore does it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One program per media type</td>
+<td>One platform, any media type</td>
+</tr>
+<tr>
+<td>Hardcoded workflows (search → download → import)</td>
+<td>Configurable workflows you define</td>
+</tr>
+<tr>
+<td>One machine, one ceiling</td>
+<td>Add machines, split the load</td>
+</tr>
+<tr>
+<td>1080p and 4K need two Sonarr instances</td>
+<td>One library, any number of qualities</td>
+</tr>
+<tr>
+<td>If a node goes down, nothing takes over</td>
+<td>Leader can resurrect orphaned tag modules; worker tasks on the departed node are released for redispatch (retry-capped)</td>
+</tr>
+<tr>
+<td>Storage must be local or NFS-mounted</td>
+<td>Storage is provider-routed (local today; S3/cloud via modules when available)</td>
+</tr>
+</tbody></table>
+<h2>How It Works (In Plain English)</h2>
+<p>Think of MuxCore as a <strong>loom</strong> — the frame that holds everything together. Every feature you add is a <strong>thread</strong> woven into that frame:</p>
+<ul>
+<li>Want to download torrents? Add a downloader thread.</li>
+<li>Want to play media through Jellyfin? Add a playback thread.</li>
+<li>Want Discord notifications? Add a notification thread.</li>
+</ul>
+<p>Threads never talk to each other directly. They send <strong>signals</strong> through the loom — download finished, import complete, playback started. Other threads hear those signals and react. This means you can add, remove, or replace threads without breaking anything.</p>
+<p>The loom itself never changes when you add a new kind of media. Movies, TV, music, books, audiobooks — they&#39;re all just threads woven into the same fabric.</p>
+<h2>Quick Start</h2>
+<p>Prefer <strong>release binaries or the installer</strong> on one laptop — not a monorepo of sibling clones, and not live pirate indexers.</p>
+<pre><code class="language-bash"># After installer or manual release download (see Getting Started)
+export DOWNLOADER_ENGINE=fixture
+export TMDB_FIXTURE=1
+muxcored --tag media --spool https://github.com/Muxcore-Media/spool
+</code></pre>
+<p><a href="Getting-Started.html">Getting Started</a> covers installer / release layout, fixture-first acquisition (no live pirate required), and verification. Active work: <a href="Tasks.html">Tasks</a> / workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>.</p>
+<h2>Quick Navigation</h2>
+<table>
+<thead>
+<tr>
+<th>New to MuxCore?</th>
+<th>Building something?</th>
+<th>Running it?</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="Core-Concepts.html">Core Concepts</a> — how it all fits together</td>
+<td><a href="Module-System.html">Module System</a> — every type of module explained</td>
+<td><a href="Getting-Started.html">Getting Started</a> — install and configure; <a href="Port-Map.html">Port Map</a> — gRPC/HTTP ports</td>
+</tr>
+<tr>
+<td><a href="Event-System.html">Events &amp; Storage</a> — how communication works</td>
+<td><a href="Writing-Modules.html">Writing Modules</a> — build your own module</td>
+<td><a href="Deployment.html">Deployment</a> — single node to cluster</td>
+</tr>
+<tr>
+<td></td>
+<td><a href="Contracts.html">Contracts Reference</a> — every interface in detail</td>
+<td><a href="Security.html">Security</a> — auth, TLS, permissions</td>
+</tr>
+<tr>
+<td></td>
+<td><a href="Workflow-Engine.html">Workflow Engine</a> — multi-step pipelines</td>
+<td><a href="Tasks.html">Tasks</a> — checklist / <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><a href="Architecture.html">Architecture</a> — bootstrap, gRPC services, cluster</td>
+</tr>
+</tbody></table>
+<hr>
+<p><strong>MuxCore is the distributed fabric for media orchestration. The loom never changes. The threads are yours to define.</strong></p>
+
+    </main>
+  </div>
+</body>
+</html>

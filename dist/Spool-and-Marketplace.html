@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spool and Marketplace · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html" class="active">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Spool and Marketplace</h1>
+<p><strong>Spools are how MuxCore discovers modules. The marketplace is how it imports them.</strong> This page explains how modules are discovered, imported, and how contract reconciliation enables third-party modules to use their own contract repos.</p>
+<hr>
+<h2>How Spools Work (Plain Language)</h2>
+<p>Think of a spool like an app store catalog. It&#39;s a list of available modules and curated tag presets. When you run:</p>
+<pre><code class="language-bash">muxcored --tag default
+</code></pre>
+<p>Core fetches the <code>default</code> tag from the official spool (<code>github.com/Muxcore-Media/spool</code>) and discovers which modules to load.</p>
+<h3>Official vs Third-Party Spools</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Example</th>
+<th>Trust Level</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Official</strong></td>
+<td><code>github.com/Muxcore-Media/spool</code></td>
+<td>Maintained by the MuxCore team</td>
+</tr>
+<tr>
+<td><strong>Third-party</strong></td>
+<td><code>github.com/some-user/custom-spool</code></td>
+<td>Untrusted — audit before use</td>
+</tr>
+</tbody></table>
+<p>Anyone can create a spool. See <a href="Spool-Security.html">Spool Security</a> for the trust model.</p>
+<h3>Tag Format</h3>
+<p>Tags are JSON files in <code>tags/&lt;name&gt;.json</code>. They list modules with version pins:</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;default&quot;,
+  &quot;description&quot;: &quot;The official MuxCore starter setup&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
+  &quot;modules&quot;: [
+    {
+      &quot;repo&quot;: &quot;https://github.com/Muxcore-Media/admin-ui&quot;,
+      &quot;version&quot;: &quot;v1.0.0&quot;,
+      &quot;required&quot;: true
+    }
+  ]
+}
+</code></pre>
+<hr>
+<h2>Module Import and Contracts</h2>
+<p>Every module implements one or more contract interfaces. For official modules, these contracts come from <code>github.com/Muxcore-Media/contracts-*</code> repos. But third-party module authors may define their contracts in their own repos.</p>
+<h3>The Problem: Go&#39;s Nominal Type System</h3>
+<p>In Go, two interfaces with identical method sets but different package paths are <strong>different types</strong>. The same applies when third-party modules vendored a private copy of a domain contract:</p>
+<pre><code class="language-go">// Module A imports the canonical gRPC stubs
+import cdlv1 &quot;github.com/Muxcore-Media/contracts-downloader/muxcore/downloader/v1&quot;
+var client cdlv1.DownloaderServiceClient
+
+// Module B generated stubs from a forked proto package path
+import other &quot;github.com/some-dev/contracts-downloader/muxcore/downloader/v1&quot;
+// other.DownloaderServiceClient is a DIFFERENT type than Module A&#39;s
+// Dial/assert paths diverge even if the wire RPCs match
+</code></pre>
+<p>This is Go&#39;s nominal type system — type identity is <code>package_path + name</code>, not structure.</p>
+<h3>The Solution: Contract Reconciliation</h3>
+<p>When core imports a module (via <code>--tag</code>), the module manager runs the <strong>contract reconciliation</strong> engine (<code>github.com/Muxcore-Media/contracts-reconciler</code>) after cloning the repo and before building:</p>
+<ol>
+<li><strong>Extract.</strong> Parses the declared Go interface / service surface from the third-party contract repo using AST</li>
+<li><strong>Compare.</strong> Checks structural compatibility against the canonical Muxcore-Media equivalent (method names, parameter types, return types)</li>
+<li><strong>Normalize.</strong> If structurally identical, generates a <code>go.mod replace</code> directive</li>
+<li><strong>Reject.</strong> If methods differ, the import fails with a detailed mismatch report</li>
+</ol>
+<pre><code>Third-party: github.com/some-dev/contracts-downloader v1.2.0
+Canonical:   github.com/Muxcore-Media/contracts-downloader v1.0.0
+
+Service &quot;DownloaderService&quot;:
+  - RPC / method signatures match structurally ✓
+
+→ go mod edit -replace github.com/some-dev/contracts-downloader=github.com/Muxcore-Media/contracts-downloader@v1.0.0
+</code></pre>
+<p>After reconciliation, <code>go.mod replace</code> directives normalize all contract imports to canonical paths.</p>
+<h3>Declaring Contracts in muxcore.json</h3>
+<p>Third-party modules declare their contracts in <code>muxcore.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;My Custom Downloader&quot;,
+  &quot;kind&quot;: &quot;downloader&quot;,
+  &quot;capabilities&quot;: [&quot;downloader&quot;, &quot;downloader.custom&quot;],
+  &quot;contracts&quot;: [
+    {
+      &quot;repo&quot;: &quot;github.com/my-org/contracts-downloader&quot;,
+      &quot;version&quot;: &quot;v2.0.0&quot;,
+      &quot;interface&quot;: &quot;DownloaderService&quot;
+    }
+  ]
+}
+</code></pre>
+<p>Official modules don&#39;t need this — they already use canonical contract repos.</p>
+<h3>The Simplest Approach: Shared Proto Package</h3>
+<p>Prefer importing the canonical <code>contracts-downloader</code> proto package and registering <code>DownloaderService</code> directly. If you must publish a thin wrapper package, re-export the generated types from the canonical module path so callers share one stub identity.</p>
+<hr>
+<h2>Canonical Contract Registry</h2>
+<p>The reconciler maintains a registry mapping interface names to canonical repos (<code>contracts-reconciler/reconciler/canonical.go</code>).</p>
+<p><strong>Published today:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Canonical Repo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DownloaderService</code></td>
+<td><code>github.com/Muxcore-Media/contracts-downloader</code></td>
+</tr>
+<tr>
+<td><code>Indexer</code></td>
+<td><code>github.com/Muxcore-Media/contracts-indexer</code></td>
+</tr>
+<tr>
+<td>Media admin seam</td>
+<td><code>github.com/Muxcore-Media/contracts-media-admin</code></td>
+</tr>
+</tbody></table>
+<p>Other entries in the reconciler registry (e.g. historical <code>contracts-media</code>, <code>contracts-playback</code>) are reserved names — those repos are not published yet. Prefer published packages or in-module interfaces until they exist.</p>
+<hr>
+<h2>Runtime Spool Management via gRPC</h2>
+<p>Core exposes the <code>SpoolService</code> gRPC service for runtime management of spools and tag deployments. Admin tools use this to inspect available spools, list tags, and trigger deployments without restarting:</p>
+<h3>SpoolService RPCs</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListSpools</code></td>
+<td>Returns all configured spool URLs (active spool from <code>--spool</code>, plus any configured runtime spools)</td>
+</tr>
+<tr>
+<td><code>ListTags</code></td>
+<td>Lists all tag names available on a given spool, with descriptions and module counts</td>
+</tr>
+<tr>
+<td><code>FetchTag</code></td>
+<td>Fetches a tag definition without deploying — inspect what modules would be loaded</td>
+</tr>
+<tr>
+<td><code>DeployTag</code></td>
+<td>Fetches a tag, resolves modules, verifies checksums, and spawns new ones. Idempotent — already-running modules are skipped</td>
+</tr>
+</tbody></table>
+<h3>Example: Deploy a Tag at Runtime</h3>
+<pre><code class="language-bash"># Using admin-ui, grpcurl, or any gRPC client (muxcorectl spool admin deferred):
+# Call DeployTag to load the &quot;media-stack&quot; tag without restarting core
+</code></pre>
+<pre><code class="language-go">spoolClient := spoolv1.NewSpoolServiceClient(conn)
+
+resp, err := spoolClient.DeployTag(ctx, &amp;spoolv1.DeployTagRequest{
+    SpoolUrl: &quot;https://github.com/Muxcore-Media/spool&quot;,
+    TagName:  &quot;media-stack&quot;,
+})
+// resp.Spawned   → number of modules newly spawned
+// resp.Skipped   → modules already running
+// resp.Failed    → modules that failed to start
+</code></pre>
+<p>The <code>DeployTag</code> response reports per-module results:</p>
+<pre><code class="language-json">{
+  &quot;tag_name&quot;: &quot;media-stack&quot;,
+  &quot;results&quot;: [
+    {&quot;module_id&quot;: &quot;downloader-native-torrent&quot;, &quot;spawned&quot;: true, &quot;already_running&quot;: false},
+    {&quot;module_id&quot;: &quot;media-movies&quot;, &quot;spawned&quot;: false, &quot;already_running&quot;: true}
+  ],
+  &quot;spawned&quot;: 1,
+  &quot;skipped&quot;: 1,
+  &quot;failed&quot;: 0
+}
+</code></pre>
+<p>See <a href="Admin-API.html">Admin API</a> for the full gRPC reference.</p>
+<hr>
+<h2>Philosophy</h2>
+<p>MuxCore contracts are <strong>patterns</strong>, not org-bound dependencies. Two modules implementing the same interface pattern should be interchangeable regardless of which GitHub org published the <code>.go</code> file.</p>
+<p>The reconciler is the weaver — it aligns patterns across independent contract repos. Core never enters the conversation. The loom doesn&#39;t care which thread made the pattern.</p>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Module-System.html">Module System</a> — how modules discover each other</li>
+<li><a href="Contracts.html">Contracts Reference</a> — every interface in detail</li>
+<li><a href="Spool-Security.html">Spool Security</a> — trust model for third-party spools</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Getting Started · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html" class="active">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Getting Started</h1>
+<p><strong>Install MuxCore on one laptop from release binaries (or the installer).</strong> You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.</p>
+<p>Active product work is tracked in <a href="Tasks.html">Tasks</a> (workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>).</p>
+<hr>
+<h2>What you are installing</h2>
+<p>MuxCore is a <strong>loom</strong> (<code>muxcored</code>) plus <strong>sidecar modules</strong> (auth, libraries, automation, downloader, UIs). On a laptop, the supported first-run is:</p>
+<ol>
+<li>Download published release assets (or run the installer that does this for you).</li>
+<li>Start a local stack with fixture-friendly defaults.</li>
+<li>Log into admin + consumer UI, import or request a fixture title, confirm it appears in the library.</li>
+</ol>
+<p>That path is the product gate. Live torrents, Apibay, Real-Debrid, paid TMDB, and paid Usenet are <strong>operator opt-in later</strong> — never required for install or smoke.</p>
+<hr>
+<h2>Prerequisites</h2>
+<table>
+<thead>
+<tr>
+<th>Required</th>
+<th>Optional</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux or macOS laptop (amd64 or arm64)</td>
+<td>Docker / Podman Compose (compose profile)</td>
+</tr>
+<tr>
+<td>Network to fetch GitHub Releases once</td>
+<td>Go toolchain (only if you build from source)</td>
+</tr>
+<tr>
+<td>A writable data directory</td>
+<td>Local Jellyfin for bridge demos</td>
+</tr>
+</tbody></table>
+<p>You do <strong>not</strong> need: sixty sibling git clones, GitHub-hosted Actions minutes, a paid registry, VPN, or any pirate site account.</p>
+<hr>
+<h2>Path A — Installer (preferred)</h2>
+<p>The end-user surface is the <strong><code>muxcore-installer</code></strong> repo (see <a href="Tasks.html">Tasks</a> §1). When available it:</p>
+<ol>
+<li>Downloads pinned <code>muxcored</code> + module release assets from GitHub Releases.</li>
+<li>Creates a local data dir, <code>.env</code>, and TLS-off-dev defaults for laptop use.</li>
+<li>Bootstraps an <code>auth-local</code> admin user and prints the password once.</li>
+<li>Starts the stack via Compose <strong>or</strong> host binaries.</li>
+<li>Writes a <code>VIEW-ME.txt</code>-style URL sheet (admin, consumer, health).</li>
+<li>Runs an offline smoke: fixture acquisition → library → <code>/api/movies</code>.</li>
+</ol>
+<p>Typical shape (exact flags land with the installer release):</p>
+<pre><code class="language-bash"># After cloning or downloading muxcore-installer
+./install.sh --dir ~/muxcore --tag media
+# Follow printed VIEW-ME.txt for admin / consumer URLs
+</code></pre>
+<p>Until the installer ships, use <strong>Path B</strong> (manual release binaries) or the developer lab in <code>_mvp/</code> (sibling builds — not the end-user path).</p>
+<hr>
+<h2>Path B — Manual release binaries</h2>
+<h3>1. Pick a data directory</h3>
+<pre><code class="language-bash">mkdir -p ~/muxcore/{bin,data,run}
+cd ~/muxcore
+</code></pre>
+<h3>2. Fetch core</h3>
+<p>Download the <code>muxcored</code> asset for your OS/arch from the <a href="https://github.com/Muxcore-Media/core/releases">core releases</a> page (current product line: <strong>v0.5.0+</strong>), verify checksums if published, and place the binary in <code>bin/</code>:</p>
+<pre><code class="language-bash">chmod +x bin/muxcored
+./bin/muxcored --help
+</code></pre>
+<h3>3. Fetch modules from Releases (not clones)</h3>
+<p>Pull the modules your spool tag pins — typically from the <code>media</code> / <code>minimal</code> presets in <a href="https://github.com/Muxcore-Media/spool"><code>Muxcore-Media/spool</code></a>. Each module publishes its own GitHub Release; the installer (Path A) automates the pin matrix. Manual operators should mirror the same tags the spool lists (no floating <code>latest</code> for end-user demos).</p>
+<p>Place module binaries next to <code>muxcored</code> or wherever your start script expects them. You still do <strong>not</strong> need source trees.</p>
+<h3>4. Spool tags instead of inventing a module list</h3>
+<pre><code class="language-bash"># Official spool — curated presets
+export MUXCORE_SPOOL=https://github.com/Muxcore-Media/spool
+./bin/muxcored --tag minimal   # platform + auth-ish baseline
+# or
+./bin/muxcored --tag media     # libraries + automation + acquisition chain
+</code></pre>
+<p>Tags are JSON lists of <code>{repo, version, required}</code>. Core resolves them from the spool and launches sidecars. Third-party spools are untrusted — see <a href="Spool-Security.html">Spool Security</a>.</p>
+<h3>5. Laptop-friendly env defaults</h3>
+<p>For a first laptop run, prefer insecure-dev TLS off and fixture acquisition (see <a href="#fixture-first-acquisition">Fixture-first acquisition</a> below):</p>
+<pre><code class="language-bash">export MUXCORE_INSECURE_DISABLE_TLS=true   # laptop / lab only
+export DOWNLOADER_ENGINE=fixture
+export TMDB_FIXTURE=1
+# Leave PIRATEBAY_API_BASE unset — indexer soft-empty is fine
+</code></pre>
+<p>Generate a local admin via your bootstrap script (installer prints this; <code>_mvp/bootstrap-auth.sh</code> is the lab equivalent). Open the printed admin and consumer URLs.</p>
+<h3>6. Verify</h3>
+<pre><code class="language-bash">curl -sS http://127.0.0.1:8080/health
+# Expect status ok and module health entries once sidecars register
+
+curl -sS http://127.0.0.1:18080/api/v1/health   # api-rest, if loaded
+</code></pre>
+<p>Then log into <strong>admin-ui</strong> and <strong>media-ui-app</strong>, confirm modules list healthy, and run a fixture Dispatch or library import (next section).</p>
+<hr>
+<h2>Path C — Developer lab (<code>_mvp</code>) — not end-user</h2>
+<p><a href="../_mvp/"><code>_mvp/</code></a> is the <strong>reference lab</strong>: sibling clones, <code>run-host.sh</code>, Compose builds from workspace trees. It proves the media path and hosts <code>./smoke.sh</code>. Product docs and the installer must not require that layout.</p>
+<p>If you are developing MuxCore itself:</p>
+<pre><code class="language-bash">cd _mvp
+cp .env.example .env
+# Prefer fixture defaults for day-to-day:
+#   DOWNLOADER_ENGINE=fixture
+#   TMDB_FIXTURE=1
+#   SMOKE_LIVE_ACQUISITION unset / off
+./run-host.sh up
+./bootstrap-auth.sh
+./smoke.sh
+</code></pre>
+<p>Operator URLs after host up: <code>_mvp/run/VIEW-ME.txt</code>. Treat <code>_mvp</code> as upstream for installer behavior, not as the install story you hand to non-developers.</p>
+<hr>
+<h2>Fixture-first acquisition</h2>
+<p><strong>No live pirate required.</strong> The supported laptop demo closes the acquire → library → UI loop entirely offline (or with only GitHub Releases for install).</p>
+<h3>Why fixtures</h3>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Fixture path</th>
+<th>Live path (opt-in)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product / smoke gate</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>BitTorrent swarm / DHT</td>
+<td>No</td>
+<td>Yes (<code>DOWNLOADER_ENGINE=anacrolix</code>)</td>
+</tr>
+<tr>
+<td>Pirate / Apibay HTTP</td>
+<td>No</td>
+<td>Yes (<code>PIRATEBAY_API_BASE</code>)</td>
+</tr>
+<tr>
+<td>TMDB network / API key</td>
+<td>No (<code>TMDB_FIXTURE=1</code>)</td>
+<td>Optional real key</td>
+</tr>
+<tr>
+<td>VPN</td>
+<td>No</td>
+<td>Recommended if you opt in</td>
+</tr>
+</tbody></table>
+<p>Live acquisition remains available for operators who explicitly enable it. It is <strong>never</strong> a CI gate, install prerequisite, or “Getting Started” requirement. See workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> constraints and §12 non-goals.</p>
+<h3>Default knobs</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Laptop default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DOWNLOADER_ENGINE</code></td>
+<td><code>fixture</code></td>
+<td>Writes a parseable <code>.mkv</code> under the download dir and completes immediately — no swarm</td>
+</tr>
+<tr>
+<td><code>TMDB_FIXTURE</code></td>
+<td><code>1</code></td>
+<td>Offline Fight Club / Breaking Bad metadata for search &amp; details</td>
+</tr>
+<tr>
+<td><code>PIRATEBAY_API_BASE</code></td>
+<td><em>unset</em></td>
+<td>Indexer stays soft-empty; Search returns nothing; demo still works</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_ACQUISITION</code></td>
+<td><em>off</em></td>
+<td>Smoke must not append live pirate sections</td>
+</tr>
+</tbody></table>
+<p>Optional later (not for first-run docs):</p>
+<pre><code class="language-bash"># Operator opt-in only — not supported as a product gate
+# export PIRATEBAY_API_BASE=https://apibay.org
+# export DOWNLOADER_ENGINE=anacrolix
+# export SMOKE_LIVE_ACQUISITION=1
+</code></pre>
+<h3>What the offline loop does</h3>
+<ol>
+<li><strong>Request / catalog</strong> — <code>request-media</code> + <code>metadata-tmdb</code> in fixture mode resolve titles without a TMDB key.</li>
+<li><strong>Dispatch</strong> — <code>media-automation</code> Dispatches to <code>downloader-native-torrent</code> with <code>DOWNLOADER_ENGINE=fixture</code>.</li>
+<li><strong>Complete</strong> — fixture engine emits <code>download.completed</code> with a local file under the downloads directory.</li>
+<li><strong>Import</strong> — <code>media-scanner</code> <code>ImportPath</code> / watch dir organizes into the library root (e.g. <code>Movies/Fight Club (1999)/…</code>).</li>
+<li><strong>Browse / play</strong> — admin-ui and media-ui-app list the title; stream/download uses the local library file.</li>
+</ol>
+<p>You can also drop a fixture file into the downloads/watch directory and import without Dispatch. Indexers may be omitted entirely.</p>
+<h3>Soft-empty indexers</h3>
+<p>Unconfigured <code>indexer-piratebay</code> / Torznab is normal on a laptop demo. Automation Search may be empty; Dispatch fixture magnets still complete. Do not treat “no indexer results” as a failed install.</p>
+<hr>
+<h2>Configuration pointers</h2>
+<ul>
+<li>Full loom keys, <code>MUXCORE_*</code> overrides, and <strong>laptop demo / installer env knobs</strong>: <a href="Configuration-Reference#laptop-demo--installer-env-_mvp--muxcore-installer">Configuration Reference</a>.</li>
+<li><strong>gRPC/HTTP host ports</strong> for installer + <code>_mvp</code> modules (including remapped collision fixes): <a href="Port-Map.html">Port Map</a>.</li>
+<li>Spool presets: <a href="Spool-and-Marketplace.html">Spool &amp; Marketplace</a>.</li>
+<li>Security / mTLS (production): <a href="Security.html">Security</a>, <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>.</li>
+</ul>
+<p>Minimal loom config example:</p>
+<pre><code class="language-json">{
+  &quot;server&quot;: { &quot;addr&quot;: &quot;:8080&quot; },
+  &quot;grpc&quot;: { &quot;addr&quot;: &quot;:9090&quot; },
+  &quot;log&quot;: { &quot;level&quot;: &quot;info&quot;, &quot;format&quot;: &quot;text&quot; }
+}
+</code></pre>
+<p>Module-specific knobs (<code>DOWNLOADER_ENGINE</code>, <code>TMDB_FIXTURE</code>, library roots, auth bootstrap) live in the installer’s <code>.env</code> (or <code>_mvp/.env</code> in the lab). Prefer env for laptop demos; keep secrets out of git.</p>
+<hr>
+<h2>Spool security (short)</h2>
+<p>Official spool: <code>https://github.com/Muxcore-Media/spool</code>. Modules there are maintained by the MuxCore org.</p>
+<p>Third-party <code>--spool</code> URLs are untrusted: audit module repos and pins, prefer commit/tag pins, and run untrusted sets in a sandbox. Modules inherit the loom’s OS privileges. Details: <a href="Spool-Security.html">Spool Security</a>.</p>
+<hr>
+<h2>Next steps</h2>
+<ul>
+<li><a href="#fixture-first-acquisition">Fixture-first acquisition</a> — already above; share with anyone tempted to “just hit Apibay for the demo”</li>
+<li><a href="Core-Concepts.html">Core Concepts</a> — loom, threads, signals</li>
+<li><a href="Deployment.html">Deployment</a> — single laptop → cluster; self-hosted CI + local registry</li>
+<li><a href="Tasks.html">Tasks</a> / <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> — installer, gates G1–G10, packaging checklist</li>
+<li><a href="Module-System.html">Module System</a> — what each sidecar does</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

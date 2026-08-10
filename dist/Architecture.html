@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Architecture · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html" class="active">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Architecture</h1>
+<p><strong>How MuxCore is built under the hood.</strong> This page covers the bootstrap sequence, gRPC services (module mesh + Health + admin), the sidecar binary pattern, and how the cluster heartbeat protocol works.</p>
+<hr>
+<h2>Bootstrap Sequence</h2>
+<p>When <code>muxcored</code> starts, here&#39;s what happens in order:</p>
+<pre><code>1.  Parse CLI flags (--tag, --spool, --version)
+2.  Load config (muxcore.json → env var overrides → validation)
+3.  Set up structured logger (slog) — log level and format applied
+4.  Run startup invariant checks (module cache, audit dir, cosign.pub, Go version)
+5.  Create in-memory event bus (with optional WAL if MUXCORE_EVENT_JOURNAL_PATH set)
+6.  Create gRPC mesh server + client
+7.  Create gRPC connection pool (for heartbeat efficiency)
+8.  Load TLS credentials (or disable with MUXCORE_INSECURE_DISABLE_TLS)
+9.  Configure gRPC server: TLS, auth interceptor, keepalive enforcement
+10. Register gRPC services: ModuleRegistration, Discovery, Events, Health, Storage, Mesh
+11. Create module registry + built-in WorkerPool (`core.workerpool`)
+12. Create HTTP API server (TLS + HSTS + security headers + trace middleware)
+13. Create storage orchestrator → discover storage + cache modules
+14. Configure audit logger (JSONL file with hash chain, or no-op); wire core built-ins (retry, idempotency, dead letter, event store)
+15. Register admin gRPC services: SpoolService, ModuleLifecycleService, AuditService
+16. Wire capability enforcement: call.policy → mesh/storage, publish.policy → event bus. Deny-by-default when no module provides a policy.
+17. Load modules from spool tag: fetch tag → resolve → verify checksums → spawn sidecars
+18. Init all modules (dependency-respecting order via Registry.StartupOrder)
+19. Start all modules
+20. Register core self-health probes (event bus, discovery, storage, audit)
+21. Set health checker combining core probes + module state
+22. Start HTTP server on :8080
+23. Start gRPC server on :9090
+24. Auto-join seed nodes (TLS required) — cluster CA distributed in JoinResponse
+25. Start heartbeat loop (10s interval, carries module list + cluster term)
+26. Start SIGHUP config-reload goroutine
+27. Wait for shutdown signal
+
+Shutdown sequence (graceful):
+1.  srv.Drain(15s)      — HTTP: stop new connections, drain in-flight
+2.  grpcSrv.GracefulStop() — gRPC: finish in-flight calls
+3.  modMgr.StopAll()    — SIGTERM all sidecar module processes
+4.  connPool.Close()    — Close all pooled gRPC connections
+5.  srv.Shutdown()      — Release remaining HTTP resources
+</code></pre>
+<h2>Component Architecture</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                      muxcored process                        │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌───────────┐  ┌───────────┐  │
+│  │ HTTP API │  │  gRPC    │  │  Event    │  │  Module   │  │
+│  │ :8080    │  │  :9090   │  │  Bus      │  │  Registry │  │
+│  └────┬─────┘  └────┬─────┘  └─────┬─────┘  └─────┬─────┘  │
+│       │             │              │               │        │
+  │  ┌────┴─────────────┴──────────────┴───────────────┴────┐   │
+│  │            Nine gRPC Services                           │   │
+│  │  ModuleReg │ Discovery │ Storage │ Events │ Mesh      │   │
+│  │  Health    │ SpoolSvc  │ Lifecycle │ Audit             │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────┐  ┌────────────┐  ┌───────────────┐            │
+│  │  Storage │  │  Call      │  │  Publish      │            │
+│  │  Orch.   │  │  Policy    │  │  Policy       │            │
+│  └──────────┘  └────────────┘  └───────────────┘            │
+│                                                              │
+│  ┌──────────────────────────────────────────────────┐       │
+│  │  Sidecar Module Manager                           │       │
+│  │  Spool → Resolve (clone/build) → Verify → Spawn   │       │
+│  └──────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h2>The Nine gRPC Services</h2>
+<p>Modules communicate with core entirely through gRPC. Six services serve module-to-core / mesh communication. Three administrative services support runtime management. All nine are served on the same port (default <code>:9090</code>):</p>
+<h3>Module Services</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Proto Package</th>
+<th>Key RPCs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>ModuleRegistration</strong></td>
+<td><code>muxcore.module.v1</code></td>
+<td><code>Register()</code>, <code>Unregister()</code>, <code>BootstrapRegister()</code></td>
+</tr>
+<tr>
+<td><strong>DiscoveryService</strong></td>
+<td><code>muxcore.discovery.v1</code></td>
+<td><code>FindByCapability()</code>, <code>FindByRole()</code>, <code>Resolve()</code>, <code>ListAll()</code>, <code>Members()</code>, <code>Watch()</code>, <code>Join()</code></td>
+</tr>
+<tr>
+<td><strong>StorageService</strong></td>
+<td><code>muxcore.storage.v1</code></td>
+<td><code>Put()</code> / <code>Get()</code> (streaming), <code>Delete()</code>, <code>Stat()</code>, <code>List()</code>, <code>Capabilities()</code></td>
+</tr>
+<tr>
+<td><strong>EventService</strong></td>
+<td><code>muxcore.events.v1</code></td>
+<td><code>Publish()</code>, <code>Subscribe()</code> (streaming), <code>Request()</code></td>
+</tr>
+<tr>
+<td><strong>ModuleMesh</strong></td>
+<td><code>muxcore.mesh.v1</code></td>
+<td><code>Call()</code>, <code>StreamCall()</code></td>
+</tr>
+<tr>
+<td><strong>HealthService</strong></td>
+<td><code>muxcore.health.v1</code></td>
+<td><code>Check()</code> (plus standard gRPC health probe)</td>
+</tr>
+</tbody></table>
+<h3>Admin Services</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Proto Package</th>
+<th>Key RPCs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SpoolService</strong></td>
+<td><code>muxcore.spool.v1</code></td>
+<td><code>ListSpools()</code>, <code>ListTags()</code>, <code>FetchTag()</code>, <code>DeployTag()</code></td>
+</tr>
+<tr>
+<td><strong>ModuleLifecycleService</strong></td>
+<td><code>muxcore.lifecycle.v1</code></td>
+<td><code>ListModules()</code>, <code>SpawnModule()</code>, <code>StopModule()</code>, <code>RestartModule()</code></td>
+</tr>
+<tr>
+<td><strong>AuditService</strong></td>
+<td><code>muxcore.audit.v1</code></td>
+<td><code>Query()</code>, <code>Export()</code>, <code>VerifyChain()</code>, <code>Log()</code></td>
+</tr>
+</tbody></table>
+<p>These replace the old in-process <code>Fabric</code> struct for module access. Same philosophy, gRPC transport.</p>
+<h3>Discovery notes (<code>core@v0.5.0+</code>)</h3>
+<ul>
+<li><strong>Public allowlist:</strong> Registration, Health <code>Check</code>, common Discovery RPCs (<code>FindByCapability</code>, <code>FindByRole</code>, <code>ListAll</code>, <code>Members</code>, <code>Watch</code>, <code>Resolve</code>, …), and selected Event RPCs are open without a bearer mesh identity so admin UIs and single-node peer fan-out work on a laptop. Other methods still require Authorizer + IdentityProvider.</li>
+<li><strong><code>Members</code> module list:</strong> On single-node deployments, <code>Members</code> refreshes the local node’s <code>Modules</code> / <code>ModuleHealth</code> from the live registry so Cluster SSE / dashboards are not stuck with an empty module list.</li>
+</ul>
+<h3>Proto Files</h3>
+<pre><code>proto/muxcore/
+├── module/v1/registration.proto      ← ModuleRegistration + BootstrapRegister
+├── discovery/v1/discovery.proto      ← Discovery + ListAll
+├── storage/v1/storage.proto          ← StorageService
+├── events/v1/events.proto            ← EventService
+├── mesh/v1/module.proto              ← ModuleMesh
+├── health/v1/health.proto            ← Health service
+├── spool/v1/spool.proto              ← SpoolService (admin)
+├── lifecycle/v1/lifecycle.proto      ← ModuleLifecycleService (admin)
+├── audit/v1/audit.proto              ← AuditService (admin)
+└── ...                               ← Infrastructure service protos (auth, secrets, etc.)
+</code></pre>
+<p>Generated Go code lives in <code>proto/gen/muxcore/&lt;service&gt;/v1/</code>.</p>
+<h2>Service Discovery</h2>
+<p>Everything beyond the base loom is discovered at runtime via <code>FindByCapability()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Capability String</th>
+<th>Interface</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Secrets</td>
+<td><code>&quot;secrets&quot;</code></td>
+<td><code>SecretsProvider</code></td>
+</tr>
+<tr>
+<td>Database</td>
+<td><code>&quot;database&quot;</code></td>
+<td><code>DatabaseProvider</code></td>
+</tr>
+<tr>
+<td>Cache</td>
+<td><code>&quot;cache&quot;</code></td>
+<td><code>CacheProvider</code></td>
+</tr>
+<tr>
+<td>Cache Layer</td>
+<td><code>&quot;cache.local&quot;</code></td>
+<td><code>CacheLayer</code></td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td><code>&quot;metrics&quot;</code></td>
+<td><code>MetricsProvider</code></td>
+</tr>
+<tr>
+<td>Tracing</td>
+<td><code>&quot;tracing&quot;</code></td>
+<td><code>TracingProvider</code></td>
+</tr>
+<tr>
+<td>Circuit Breaker</td>
+<td><code>&quot;circuitbreaker&quot;</code></td>
+<td><code>CircuitBreaker</code></td>
+</tr>
+<tr>
+<td>Config Watcher</td>
+<td><code>&quot;config.watcher&quot;</code></td>
+<td><code>ConfigWatcher</code></td>
+</tr>
+<tr>
+<td>Dead Letter</td>
+<td><code>&quot;deadletter&quot;</code></td>
+<td><code>DeadLetterProvider</code></td>
+</tr>
+<tr>
+<td>Call Policy</td>
+<td><code>&quot;call.policy&quot;</code></td>
+<td><code>CallPolicyProvider</code></td>
+</tr>
+<tr>
+<td>Identity</td>
+<td><code>&quot;identity&quot;</code></td>
+<td><code>IdentityProvider</code></td>
+</tr>
+<tr>
+<td>Logging</td>
+<td><code>&quot;logging&quot;</code></td>
+<td><code>StructuredLogger</code></td>
+</tr>
+<tr>
+<td>Retry</td>
+<td><code>&quot;retry&quot;</code></td>
+<td><code>RetryProvider</code></td>
+</tr>
+<tr>
+<td>Idempotency</td>
+<td><code>&quot;idempotency&quot;</code></td>
+<td><code>IdempotencyProvider</code></td>
+</tr>
+<tr>
+<td>Feature Flags</td>
+<td><code>&quot;feature.flags&quot;</code></td>
+<td><code>FeatureFlagProvider</code></td>
+</tr>
+<tr>
+<td>Serialization</td>
+<td><code>&quot;serialization&quot;</code></td>
+<td><code>SerializationProvider</code></td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td><code>&quot;encryption&quot;</code></td>
+<td><code>EncryptionProvider</code></td>
+</tr>
+<tr>
+<td>Distributed Lock</td>
+<td><code>&quot;distributed.lock&quot;</code></td>
+<td><code>DistributedLockProvider</code></td>
+</tr>
+<tr>
+<td>Data Redaction</td>
+<td><code>&quot;data.redaction&quot;</code></td>
+<td><code>DataRedactionProvider</code></td>
+</tr>
+<tr>
+<td>Event Store</td>
+<td><code>&quot;event.store&quot;</code></td>
+<td><code>EventStore</code></td>
+</tr>
+<tr>
+<td>Input Validation</td>
+<td><code>&quot;input.validate&quot;</code></td>
+<td><code>InputValidator</code></td>
+</tr>
+<tr>
+<td>Workflow Engine</td>
+<td><code>&quot;workflow.engine&quot;</code></td>
+<td><code>WorkflowEngine</code></td>
+</tr>
+<tr>
+<td>Publish Policy</td>
+<td><code>&quot;publish.policy&quot;</code></td>
+<td><code>PublishPolicyProvider</code></td>
+</tr>
+</tbody></table>
+<p>If no module provides a capability, callers handle it gracefully — default behavior, degradation, or a warning. Every service is optional.</p>
+<h2>Sidecar Module Pattern</h2>
+<p>Modules are standalone binaries, not compile-time imports. Core spawns them as child processes. Each binary must:</p>
+<ol>
+<li>Accept <code>--muxcore-mesh-addr</code> (default: <code>localhost:9090</code>)</li>
+<li>Accept <code>--muxcore-module-id</code> (its identifier)</li>
+<li>Connect to the gRPC mesh</li>
+<li>Call <code>ModuleRegistration.Register()</code> with JSON-serialized <code>ModuleInfo</code></li>
+<li>Respond to SIGTERM/SIGINT for graceful shutdown</li>
+<li>Call <code>ModuleRegistration.Unregister()</code> on exit</li>
+</ol>
+<p>Reference implementation: <a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a></p>
+<h2>Cluster Heartbeat Protocol</h2>
+<p>When multiple core instances form a cluster:</p>
+<ol>
+<li><strong>Registration</strong> — Modules register on their local core via <code>Register()</code> RPC</li>
+<li><strong>Heartbeat</strong> — Every 10s, each core sends a heartbeat to every peer carrying its module list (<code>NodeInfo.modules</code>) and the current cluster term</li>
+<li><strong>Sync</strong> — Peers update their copy of the remote node&#39;s module list and reconcile terms from incoming heartbeats</li>
+<li><strong>Routing</strong> — Mesh uses <code>NodeInfo.modules</code> to determine which node hosts a target module</li>
+<li><strong>Eviction</strong> — After 30s without a heartbeat, a node is evicted; its module list is removed and leader re-election runs</li>
+</ol>
+<h3>Leader Election</h3>
+<p>MuxCore uses <strong>deterministic rank-based election</strong>. Every surviving node independently runs the same calculation and reaches the same result without coordination:</p>
+<ol>
+<li>The surviving member with the <strong>alphabetically lowest node ID</strong> is always the leader</li>
+<li>Each election increments the <strong>term</strong> — a monotonically increasing counter</li>
+<li>Terms propagate via gRPC metadata on all Heartbeat and Join calls</li>
+<li>When a node receives a heartbeat with a higher term, it updates its view and re-runs election</li>
+<li>The leader&#39;s responsibilities: authoritative cluster ID, orphan module resurrection. (Eviction of dead peers runs independently on every node.)</li>
+</ol>
+<p>Node IDs are set from <code>&quot;muxcore-&quot; + grpc.addr</code> at boot, which is deterministic per address.</p>
+<h3>Node Failure</h3>
+<p>When a node dies:</p>
+<ol>
+<li>Surviving nodes evict it after 30s heartbeat timeout</li>
+<li>If the evicted node was the leader, re-election runs automatically</li>
+<li>Mesh stops routing calls to the dead node&#39;s modules</li>
+<li>Leader may resurrect orphaned tag modules on a surviving node; departed-node worker tasks are released to Pending for redispatch (up to <code>MaxRetries</code>; exhausted retries fail)</li>
+</ol>
+<h3>Cluster Events</h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Proto Constant</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Node Joined</td>
+<td><code>TYPE_NODE_JOINED</code></td>
+<td>New core joins the cluster</td>
+</tr>
+<tr>
+<td>Node Left</td>
+<td><code>TYPE_NODE_LEFT</code></td>
+<td>Core evicted (dead) or gracefully leaves</td>
+</tr>
+<tr>
+<td>Node Degraded</td>
+<td><code>TYPE_NODE_DEGRADED</code></td>
+<td>Node reports reduced capability</td>
+</tr>
+<tr>
+<td>Leader Changed</td>
+<td><code>TYPE_LEADER_CHANGED</code></td>
+<td>Election produces a new leader</td>
+</tr>
+</tbody></table>
+<h3>Connection Pooling</h3>
+<p>Heartbeats and cross-node mesh calls reuse a <strong>gRPC connection pool</strong> rather than dialing per-request. The pool evicts idle connections after 5 minutes and is closed cleanly on shutdown.</p>
+<h2>Audit System</h2>
+<p>The built-in audit logger (<code>internal/audit/audit.go</code>) writes JSONL to a file:</p>
+<ul>
+<li><strong>Hash chain</strong> — each entry carries <code>PrevEntryHash</code> (SHA-256 of previous entry), forming a tamper-evident chain</li>
+<li><strong>Optional HMAC</strong> — entries can be cryptographically signed with a configured key</li>
+<li><strong>Chain verification</strong> — <code>VerifyChainIntegrity()</code> validates the chain without exposing entry content</li>
+<li><strong>No-op when disabled</strong> — empty <code>audit.path</code> means zero overhead; all Log/Query/Export return immediately</li>
+</ul>
+<h2>Security Headers</h2>
+<ul>
+<li><strong>HSTS</strong> — emitted only when TLS is enabled (not unconditionally — CWE-523 fix)</li>
+<li><strong>CSP</strong> — <code>default-src &#39;self&#39;</code> on all HTML responses</li>
+<li><strong>CRLF blocking</strong> — trace header strips <code>\r\n</code> before use (CWE-93 fix)</li>
+<li><strong>gRPC keepalive</strong> — 5-minute idle timeout with 30s enforcement minimum (CWE-400 fix)</li>
+</ul>
+<h2>Middleware Chain</h2>
+<p>The HTTP server applies middleware in this order (outermost → innermost):</p>
+<ol>
+<li><code>MaxBytesReader</code> — rejects oversized bodies (10 MB) before any handler runs</li>
+<li><code>SecurityHeaders</code> — HSTS, CSP, X-Frame-Options, etc.</li>
+<li><code>Recovery</code> — panic recovery → 500</li>
+<li><code>RateLimit</code> — per-IP rate limiting</li>
+<li><code>Auth</code> — session validation (sets session in request context)</li>
+<li><code>Authz</code> — authorization checks against route permissions</li>
+<li><code>Audit</code> — logs all authenticated requests (actor from session)</li>
+<li><code>Logging</code> — structured request logging</li>
+<li><code>Trace</code> — trace ID propagation</li>
+</ol>
+<p>In Go HTTP middleware, the last wrapper applied executes first. The <code>rebuildChain()</code> function builds from innermost to outermost to achieve the correct execution order.</p>
+<h2>Proxy Trust</h2>
+<p><code>X-Forwarded-For</code> is trusted only from configured proxy CIDRs (loopback by default: <code>127.0.0.0/8</code>, <code>::1/128</code>). Untrusted peers: XFF ignored; client IP is <code>RemoteAddr</code>. <code>X-Real-IP</code> is not used. Configure via <code>server.trusted_proxies</code> or <code>SetTrustedProxies(cidrs []string)</code>. Trusted CIDRs should name the immediate reverse-proxy hop(s).</p>
+<h2>Configuration Loading</h2>
+<pre><code>muxcore.json (file)
+     ↓
+Environment variables (overlay)
+     ↓
+Validation (timeouts, log levels, TLS cert validity)
+     ↓
+Config struct
+</code></pre>
+<p>Environment variables take highest precedence. See <a href="Configuration-Reference.html">Configuration Reference</a> for the complete variable list.</p>
+<h3>Hot-Reload (SIGHUP)</h3>
+<p>Send <code>SIGHUP</code> to a running <code>muxcored</code> process to reload the config file:</p>
+<pre><code class="language-bash">kill -HUP $(pidof muxcored)
+</code></pre>
+<p><strong>Safe changes</strong> (applied immediately without restart):</p>
+<ul>
+<li>Log level and format</li>
+<li>Seed node list</li>
+</ul>
+<p><strong>Unsafe changes</strong> (logged as warnings; require restart):</p>
+<ul>
+<li>Audit log path</li>
+<li>Server or gRPC listen addresses</li>
+<li>TLS certificate/key files</li>
+<li>Database or cache URLs</li>
+<li>Join token</li>
+</ul>
+<h2>Admin Tooling</h2>
+<p>Core does <strong>not</strong> ship a built-in admin UI. Admin functionality is delivered by optional tooling:</p>
+<ul>
+<li><strong><code>admin-ui</code></strong> (shipped) — web dashboard (standalone client on the default spool tag). Uses core gRPC admin/discovery services and discovers <code>SettingsProvider</code>, <code>AuditLogger</code>, and <code>Authorizer</code> capabilities. CSRF protection lives in the UI, not core.</li>
+<li><strong><code>muxcorectl</code> CLI</strong> (MVP) — talks to core gRPC for <code>modules list</code>, <code>cluster status</code>, <code>events tail</code>, <code>storage ls</code>, <code>audit query</code>. Lifecycle and spool admin RPCs are deferred; use <code>admin-ui</code> or any gRPC client for those.</li>
+</ul>
+<p>Core provides the data seams modules consume: <code>MembersSnapshot()</code>, <code>SubscriberStats()</code>, <code>ProviderInfo()</code>, <code>IsLeader()</code>, <code>Term()</code>, and the full gRPC service suite. The <code>SettingsProvider</code> contract in <code>pkg/contracts/settings.go</code> is the hook for modules to expose their configuration to admin tooling.</p>
+<p>Observability endpoints that <strong>do</strong> stay in core:</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Gated by</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/health</code></td>
+<td>Always on</td>
+<td>Liveness / readiness for load balancers</td>
+</tr>
+<tr>
+<td><code>/metrics</code></td>
+<td><code>MUXCORE_METRICS_ENABLE=true</code></td>
+<td>Prometheus scraping</td>
+</tr>
+<tr>
+<td><code>/debug/pprof/*</code></td>
+<td><code>MUXCORE_DEBUG_ENABLE=true</code></td>
+<td>Go runtime profiling</td>
+</tr>
+</tbody></table>
+<h2>Core Self-Health</h2>
+<p>Core probes its own internals on every <code>/health</code> request. Probe results are cached for 5 seconds to avoid thundering-herd on poll-based monitoring.</p>
+<table>
+<thead>
+<tr>
+<th>Probe</th>
+<th>What it checks</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>core.event_bus</code></td>
+<td>Event bus is initialised and accepting subscriptions</td>
+</tr>
+<tr>
+<td><code>core.discovery</code></td>
+<td>Cluster discovery is reachable</td>
+</tr>
+<tr>
+<td><code>core.storage</code></td>
+<td>Storage orchestrator is alive</td>
+</tr>
+<tr>
+<td><code>core.audit</code></td>
+<td>Audit log directory is writable (when configured)</td>
+</tr>
+</tbody></table>
+<p>Failed core probes appear in the <code>/health</code> response as <code>&quot;core.&lt;probe&gt;&quot;: &quot;&lt;error&gt;&quot;</code>.</p>
+<h2>Startup Invariant Checks</h2>
+<p>Before starting any subsystem, core verifies:</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>What it verifies</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>module_cache_writable</code></td>
+<td><code>~/.muxcore/modules/</code> exists and is writable</td>
+</tr>
+<tr>
+<td><code>audit_log_dir_writable</code></td>
+<td>Audit log parent directory is writable</td>
+</tr>
+<tr>
+<td><code>cosign_pub_readable</code></td>
+<td><code>cosign.pub</code> exists and is readable for spool verification (<strong>warning</strong> if missing)</td>
+</tr>
+<tr>
+<td><code>go_version_match</code></td>
+<td>Go runtime version matches expected major.minor (<strong>warning</strong> on mismatch)</td>
+</tr>
+</tbody></table>
+<p>Writable module-cache / audit-dir failures are fatal and abort startup. Cosign and Go-version mismatches warn and continue.</p>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Core-Concepts.html">Core Concepts</a> — architectural philosophy</li>
+<li><a href="Module-System.html">Module System</a> — module lifecycle and discovery</li>
+<li><a href="Writing-Modules.html">Writing Modules</a> — build a sidecar module</li>
+<li><a href="Configuration-Reference.html">Configuration Reference</a> — every config option</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

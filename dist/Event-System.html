@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Event System · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html" class="active">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Event System</h1>
+<p><strong>Events (signals) are how modules communicate without knowing about each other.</strong> This page explains the event bus, event types, how to publish and subscribe, and module lifecycle event management.</p>
+<hr>
+<h2>How Events Work</h2>
+<p>Modules publish events on the event bus. Other modules subscribe to event types they care about. The publisher never knows who&#39;s listening:</p>
+<pre><code>Downloader publishes: &quot;download.completed&quot;
+    ↓
+Media Manager receives it → imports the file
+Transcoder receives it → starts optimizing
+Notification module receives it → sends a Discord message
+</code></pre>
+<hr>
+<h2>Event Types</h2>
+<p>Event types use dotted naming: <code>domain.action</code>. Core defines infrastructure events. Domain contracts define domain events.</p>
+<h3>Core Events</h3>
+<table>
+<thead>
+<tr>
+<th>Event Type</th>
+<th>Payload</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>module.registered</code></td>
+<td><code>ModuleRegisteredPayload</code></td>
+<td>Module registers successfully</td>
+</tr>
+<tr>
+<td><code>module.unregistered</code></td>
+<td><code>ModuleUnregisteredPayload</code></td>
+<td>Module unregisters</td>
+</tr>
+<tr>
+<td><code>module.degraded</code></td>
+<td><code>ModuleDegradedPayload</code></td>
+<td>Module health check fails</td>
+</tr>
+<tr>
+<td><code>node.joined</code></td>
+<td><code>NodeInfo</code></td>
+<td>New core joins the cluster</td>
+</tr>
+<tr>
+<td><code>node.left</code></td>
+<td><code>NodeID</code></td>
+<td>Core leaves cluster (evicted or graceful)</td>
+</tr>
+<tr>
+<td><code>node.degraded</code></td>
+<td><code>NodeDegradedPayload</code></td>
+<td>Node reports reduced capability</td>
+</tr>
+<tr>
+<td><code>leader.changed</code></td>
+<td><code>LeaderID</code></td>
+<td>Cluster leader changes</td>
+</tr>
+</tbody></table>
+<h3>Domain Events</h3>
+<p>Media/download event type constants live in core <code>pkg/contracts</code> (e.g. <code>media_events.go</code>). Examples:</p>
+<ul>
+<li><code>download.started</code>, <code>download.completed</code>, <code>download.failed</code> — published by downloader modules (e.g. <code>downloader-native-torrent</code>); there is no <code>download.progress</code> bus event today</li>
+<li><code>media.movie.added</code> / <code>.removed</code> / <code>.updated</code> / <code>.file_added</code> / <code>.file_removed</code></li>
+<li><code>media.tv.added</code> / <code>.removed</code> / <code>.updated</code> / <code>.episode_file_added</code> / <code>.episode_file_removed</code></li>
+<li><code>media.file.imported</code>, <code>media.download.dispatched</code></li>
+<li><code>tapestry.step.started</code>, <code>tapestry.step.completed</code>, <code>tapestry.step.failed</code> — workflow engine (<code>pkg/contracts/workflow.go</code>)</li>
+<li><code>tapestry.started</code>, <code>tapestry.completed</code>, <code>tapestry.failed</code>, <code>tapestry.cancelled</code>, <code>tapestry.paused</code>, <code>tapestry.resumed</code></li>
+</ul>
+<hr>
+<h2>Publishing Events</h2>
+<pre><code class="language-go">import &quot;github.com/Muxcore-Media/core/pkg/contracts&quot;
+
+payload, _ := json.Marshal(contracts.DownloadEventPayload{
+    ID:       id,
+    Name:     &quot;The Terminator&quot;,
+    InfoHash: infoHash,
+    SavePath: savePath,
+})
+
+bus.Publish(ctx, contracts.Event{
+    Type:    contracts.EventDownloadCompleted,
+    Source:  &quot;downloader-native-torrent&quot;,
+    Payload: payload,
+})
+</code></pre>
+<p>Sidecar modules publish via gRPC:</p>
+<pre><code class="language-go">events := eventsv1.NewEventServiceClient(conn)
+events.Publish(ctx, &amp;eventsv1.PublishRequest{
+    Event: &amp;eventsv1.Event{
+        Type:    &quot;download.completed&quot;,
+        Source:  moduleID,
+        Payload: jsonPayload,
+    },
+})
+</code></pre>
+<h3>Publish Policy</h3>
+<p>Event publication is deny-by-default until a <code>PublishPolicyProvider</code> module is registered (capability <code>&quot;publish.policy&quot;</code>). The reference module <code>publish-policy-default</code> loads YAML rules from <code>policies.yaml</code> (override with <code>PUBLISH_POLICY_FILE</code>). Each rule matches a <code>caller</code> module ID (or <code>&quot;*&quot;</code>) against <code>event_types</code> globs (<code>&quot;download.*&quot;</code>, <code>&quot;media.*&quot;</code>, <code>&quot;*&quot;</code>). First matching rule wins.</p>
+<pre><code class="language-yaml">- caller: &quot;downloader-native-torrent&quot;
+  event_types: [&quot;download.*&quot;]
+- caller: &quot;*&quot;
+  event_types: [&quot;module.*&quot;, &quot;cluster.*&quot;]
+</code></pre>
+<hr>
+<h2>Subscribing to Events</h2>
+<pre><code class="language-go">bus.Subscribe(ctx, contracts.EventDownloadCompleted, func(ctx context.Context, event contracts.Event) error {
+    var payload contracts.DownloadEventPayload
+    json.Unmarshal(event.Payload, &amp;payload)
+    // Process the download...
+    return nil
+})
+</code></pre>
+<p>Use <code>&quot;*&quot;</code> to subscribe to all events (useful for audit loggers and monitoring modules).</p>
+<p>Sidecar modules subscribe via gRPC streaming:</p>
+<pre><code class="language-go">events := eventsv1.NewEventServiceClient(conn)
+stream, _ := events.Subscribe(ctx, &amp;eventsv1.SubscribeRequest{
+    EventTypes: []string{&quot;download.completed&quot;, &quot;media.file.imported&quot;},
+})
+for {
+    event, err := stream.Recv()
+    // Handle event...
+}
+</code></pre>
+<hr>
+<h2>Per-Module Subscriptions (SubscribeModule / UnsubscribeAll)</h2>
+<p>Modules that subscribe to events during <code>Start()</code> and need clean teardown during <code>Stop()</code> should use <code>SubscribeModule</code> and <code>UnsubscribeAll</code>:</p>
+<pre><code class="language-go">// In Start():
+bus.SubscribeModule(ctx, m.id, &quot;download.completed&quot;, m.handleDownloadCompleted)
+
+// In Stop():
+bus.UnsubscribeAll(ctx, m.id)  // removes all subscriptions tagged with this module ID
+</code></pre>
+<p>This is cleaner than tracking individual handler references. <code>UnsubscribeAll</code> removes every subscription tagged with the given module ID in a single call — no need to store and individually unsubscribe each handler.</p>
+<p><code>UnsubscribeAll</code> with an empty module ID is a no-op. It only removes subscriptions that were registered with <code>SubscribeModule</code>.</p>
+<hr>
+<h2>Request-Reply Pattern</h2>
+<p>For synchronous request-reply, use <code>Request()</code>:</p>
+<pre><code class="language-go">reply, err := bus.Request(ctx, contracts.Event{
+    Type:    &quot;metadata.lookup&quot;,
+    Source:  &quot;media-movies&quot;,
+    Payload: payload,
+}, 5*time.Second)
+</code></pre>
+<p>The event bus creates a temporary subscription for <code>&lt;type&gt;.reply</code>, publishes the request event, and waits for a reply. The first reply wins. Timeout or context cancellation returns an error.</p>
+<hr>
+<h2>Event Handler Guidelines</h2>
+<ul>
+<li><strong>Handlers run concurrently</strong> — the event bus dispatches each handler in its own goroutine. Don&#39;t rely on handler ordering.</li>
+<li><strong>30-second timeout</strong> — each handler gets a 30-second context timeout. Long-running work should be enqueued, not done in the handler.</li>
+<li><strong>Return errors for logging</strong> — returned errors are logged but don&#39;t affect other subscribers.</li>
+<li><strong>Don&#39;t block</strong> — if your handler does heavy work, spawn a goroutine.</li>
+<li><strong>Trace propagation</strong> — trace IDs are propagated from publisher to subscriber context automatically.</li>
+</ul>
+<hr>
+<h2>Audit Events</h2>
+<p>When an audit logger is configured, the event bus records every <code>Publish</code>, <code>Subscribe</code>, and <code>Unsubscribe</code> call:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Audited Fields</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>event.publish</code></td>
+<td>source, event type, subscriber count, trace ID</td>
+</tr>
+<tr>
+<td><code>event.subscribe</code></td>
+<td>event type, handler pointer</td>
+</tr>
+<tr>
+<td><code>event.unsubscribe</code></td>
+<td>event type, handler pointer</td>
+</tr>
+</tbody></table>
+<p>Read operations (<code>Get</code>, <code>List</code>, <code>Exists</code>) are intentionally not audited at the bus level — they&#39;re hot paths that would overwhelm the audit trail.</p>
+<hr>
+<h2>Event Schema Versioning</h2>
+<p>The constant <code>EventSchemaVersion = &quot;v1&quot;</code> is defined in <code>pkg/contracts/eventschema.go</code> but is <strong>reserved</strong> — it is not currently consumed at runtime. It is defined for future typed-payload support. Current events use raw <code>[]byte</code> payloads that callers marshal/unmarshal themselves.</p>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Module-System.html">Module System</a> — how modules discover each other</li>
+<li><a href="Contracts.html">Contracts Reference</a> — EventBus and EventHandler interfaces</li>
+<li><a href="Writing-Modules.html">Writing Modules</a> — publish and subscribe from sidecar modules</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

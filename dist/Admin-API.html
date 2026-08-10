@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin API · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html" class="active">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Admin API (gRPC Services)</h1>
+<p><strong>Runtime management services for admin tools.</strong> Core exposes three gRPC services for querying and controlling modules, spools, and audit logs. These are used by <code>admin-ui</code> and the <code>muxcorectl</code> CLI MVP (plus any gRPC client). The MVP covers discovery/events/storage/audit query paths; lifecycle and spool admin RPCs are still deferred in the CLI.</p>
+<p>All three services are registered on the same gRPC port (default <code>:9090</code>) alongside the existing module-facing services.</p>
+<hr>
+<h2>SpoolService</h2>
+<p><strong>Proto:</strong> <code>muxcore/spool/v1/spool.proto</code>
+<strong>Go package:</strong> <code>proto/gen/muxcore/spool/v1</code></p>
+<p>Runtime management of spool configurations and tag-based module deployment. Use this to inspect available spools, list tags, and trigger deployments without restarting core.</p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Request</th>
+<th>Response</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListSpools</code></td>
+<td><code>ListSpoolsRequest</code></td>
+<td><code>ListSpoolsResponse</code></td>
+<td>Returns all configured spool URLs (active spool + any configured via API)</td>
+</tr>
+<tr>
+<td><code>ListTags</code></td>
+<td><code>ListTagsRequest</code></td>
+<td><code>ListTagsResponse</code></td>
+<td>Lists all tag names available on the given spool</td>
+</tr>
+<tr>
+<td><code>FetchTag</code></td>
+<td><code>FetchTagRequest</code></td>
+<td><code>FetchTagResponse</code></td>
+<td>Fetches a tag definition without deploying its modules</td>
+</tr>
+<tr>
+<td><code>DeployTag</code></td>
+<td><code>DeployTagRequest</code></td>
+<td><code>DeployTagResponse</code></td>
+<td>Fetches a tag, resolves modules, verifies checksums, spawns new ones. Idempotent — already-running modules are skipped</td>
+</tr>
+</tbody></table>
+<h3>DeployTag Response</h3>
+<pre><code class="language-json">{
+  &quot;tag_name&quot;: &quot;media-stack&quot;,
+  &quot;spool_url&quot;: &quot;https://github.com/Muxcore-Media/spool&quot;,
+  &quot;results&quot;: [
+    {&quot;module_id&quot;: &quot;downloader-native-torrent&quot;, &quot;spawned&quot;: true, &quot;already_running&quot;: false, &quot;error&quot;: &quot;&quot;},
+    {&quot;module_id&quot;: &quot;media-movies&quot;, &quot;spawned&quot;: false, &quot;already_running&quot;: true, &quot;error&quot;: &quot;&quot;}
+  ],
+  &quot;total&quot;: 2,
+  &quot;spawned&quot;: 1,
+  &quot;skipped&quot;: 1,
+  &quot;failed&quot;: 0
+}
+</code></pre>
+<hr>
+<h2>ModuleLifecycleService</h2>
+<p><strong>Proto:</strong> <code>muxcore/lifecycle/v1/lifecycle.proto</code>
+<strong>Go package:</strong> <code>proto/gen/muxcore/lifecycle/v1</code></p>
+<p>Runtime control over individual module lifecycle — inspect, spawn, stop, and restart modules.</p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Request</th>
+<th>Response</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListModules</code></td>
+<td><code>ListModulesRequest</code></td>
+<td><code>ListModulesResponse</code></td>
+<td>All modules known to this node, including state, health, capabilities, uptime</td>
+</tr>
+<tr>
+<td><code>SpawnModule</code></td>
+<td><code>SpawnModuleRequest</code></td>
+<td><code>SpawnModuleResponse</code></td>
+<td>Resolve and spawn a module from a previously deployed tag</td>
+</tr>
+<tr>
+<td><code>StopModule</code></td>
+<td><code>StopModuleRequest</code></td>
+<td><code>StopModuleResponse</code></td>
+<td>Send SIGTERM to a running module and wait for stop</td>
+</tr>
+<tr>
+<td><code>RestartModule</code></td>
+<td><code>RestartModuleRequest</code></td>
+<td><code>RestartModuleResponse</code></td>
+<td>Kill and re-spawn a module from its existing binary</td>
+</tr>
+</tbody></table>
+<h3>ListModules Response</h3>
+<pre><code class="language-json">{
+  &quot;modules&quot;: [
+    {
+      &quot;module_id&quot;: &quot;downloader-native-torrent&quot;,
+      &quot;name&quot;: &quot;Native Torrent Downloader&quot;,
+      &quot;version&quot;: &quot;1.0.2&quot;,
+      &quot;state&quot;: &quot;running&quot;,
+      &quot;health_error&quot;: &quot;&quot;,
+      &quot;capabilities&quot;: [&quot;downloader.torrent&quot;, &quot;downloader.native.torrent&quot;],
+      &quot;repo&quot;: &quot;https://github.com/Muxcore-Media/downloader-native-torrent&quot;,
+      &quot;node_id&quot;: &quot;muxcore-127.0.0.1:9090&quot;,
+      &quot;restart_policy&quot;: &quot;on-failure&quot;,
+      &quot;uptime_seconds&quot;: 86400
+    }
+  ]
+}
+</code></pre>
+<hr>
+<h2>AuditService</h2>
+<p><strong>Proto:</strong> <code>muxcore/audit/v1/audit.proto</code>
+<strong>Go package:</strong> <code>proto/gen/muxcore/audit/v1</code></p>
+<p>Query, export, and verify the core audit log. Provides programmatic access to the tamper-evident JSONL audit trail.</p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Request</th>
+<th>Response</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Query</code></td>
+<td><code>AuditQueryRequest</code></td>
+<td><code>AuditQueryResponse</code></td>
+<td>Search audit entries by actor, action, resource, trace ID, and time range</td>
+</tr>
+<tr>
+<td><code>Export</code></td>
+<td><code>AuditExportRequest</code></td>
+<td><code>stream AuditExportChunk</code></td>
+<td>Stream all matching entries in JSON or CSV format (supports terabytes-scale logs)</td>
+</tr>
+<tr>
+<td><code>VerifyChain</code></td>
+<td><code>AuditVerifyChainRequest</code></td>
+<td><code>AuditVerifyChainResponse</code></td>
+<td>Standalone SHA-256 hash-chain integrity check over a time range — verifies without exposing entry content</td>
+</tr>
+<tr>
+<td><code>Log</code></td>
+<td><code>LogRequest</code></td>
+<td><code>LogResponse</code></td>
+<td>Write an entry to the audit log (used by admin tools and modules)</td>
+</tr>
+</tbody></table>
+<h3>AuditQueryRequest</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>actor</code></td>
+<td>string</td>
+<td>Filter by actor ID (user, system, module). Empty matches all</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td>string</td>
+<td>Filter by action string</td>
+</tr>
+<tr>
+<td><code>resource</code></td>
+<td>string</td>
+<td>Filter by resource string</td>
+</tr>
+<tr>
+<td><code>trace_id</code></td>
+<td>string</td>
+<td>Filter by trace ID</td>
+</tr>
+<tr>
+<td><code>from_time</code></td>
+<td>string</td>
+<td>Start of time range (RFC3339)</td>
+</tr>
+<tr>
+<td><code>to_time</code></td>
+<td>string</td>
+<td>End of time range (RFC3339)</td>
+</tr>
+<tr>
+<td><code>verify_chain</code></td>
+<td>bool</td>
+<td>When true, validates hash chain of returned entries</td>
+</tr>
+<tr>
+<td><code>max_results</code></td>
+<td>int32</td>
+<td>Cap on returned entries (0 = no limit)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>DiscoveryService Extensions</h2>
+<p>The existing <code>DiscoveryService</code> was extended with a <code>ListAll</code> RPC that returns health and state information for every registered module across the cluster:</p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListAll</code></td>
+<td>All registered modules on this node and all known peer nodes, including state, health status, and node ID</td>
+</tr>
+</tbody></table>
+<h3>ModuleEntryProto</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>info</code></td>
+<td><code>ModuleInfoProto</code></td>
+<td>Module identity and capabilities</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>string</td>
+<td>Lifecycle state: <code>registered</code>, <code>starting</code>, <code>running</code>, <code>degraded</code>, <code>stopping</code>, <code>stopped</code></td>
+</tr>
+<tr>
+<td><code>health_error</code></td>
+<td>string</td>
+<td>Empty when healthy, last health check error otherwise</td>
+</tr>
+<tr>
+<td><code>node_id</code></td>
+<td>string</td>
+<td>Cluster node running this module</td>
+</tr>
+</tbody></table>
+<p>The <code>ModuleInfoProto</code> also now carries <code>state</code> (field 11), <code>health_error</code> (field 12), and <code>repository</code> (field 13) for consolidated reporting.</p>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Architecture.html">Architecture</a> — full gRPC service overview and bootstrap sequence</li>
+<li><a href="Security.html">Security</a> — audit logging and authentication</li>
+<li><a href="Spool-and-Marketplace.html">Spool and Marketplace</a> — spool system details</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

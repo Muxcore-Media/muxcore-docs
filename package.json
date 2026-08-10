@@ -1,0 +1,15 @@
+{
+  "name": "muxcore-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static site rendered from MuxCore wiki markdown",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "npx --yes serve dist -l 8080"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "marked": "^15.0.12"
+  }
+}

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contributing · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html" class="active">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Contributing to MuxCore</h1>
+<p><strong>Thank you for considering contributing to MuxCore.</strong> This guide covers development setup, contract contribution guidelines, and the PR process.</p>
+<hr>
+<h2>Development Setup</h2>
+<h3>Prerequisites</h3>
+<ul>
+<li><strong>Go 1.24+</strong> (project targets Go 1.26)</li>
+<li><strong>protoc</strong> + <strong>protoc-gen-go</strong> + <strong>protoc-gen-go-grpc</strong> (for proto changes)</li>
+<li><strong>git</strong> + <strong>GitHub account</strong></li>
+</ul>
+<h3>Clone and Build</h3>
+<pre><code class="language-bash">git clone https://github.com/Muxcore-Media/core.git
+cd core
+go build ./...
+</code></pre>
+<h3>Run Tests</h3>
+<pre><code class="language-bash">scripts/run_tests.sh
+</code></pre>
+<h3>Lint</h3>
+<pre><code class="language-bash">golangci-lint run
+</code></pre>
+<p>Configuration is in <code>.golangci.yml</code>.</p>
+<h3>Run Core Locally</h3>
+<pre><code class="language-bash"># Development mode (no TLS)
+MUXCORE_INSECURE_DISABLE_TLS=true go run ./cmd/muxcored --tag default
+
+# Bare loom (no modules)
+MUXCORE_INSECURE_DISABLE_TLS=true go run ./cmd/muxcored
+</code></pre>
+<h3>Proto Regeneration</h3>
+<pre><code class="language-bash">protoc --go_out=. --go_opt=module=github.com/Muxcore-Media/core \
+       --go-grpc_out=. --go-grpc_opt=module=github.com/Muxcore-Media/core \
+       -I proto proto/muxcore/**/v1/*.proto
+</code></pre>
+<hr>
+<h2>Architecture Rules</h2>
+<h3>The Iron Rule</h3>
+<blockquote>
+<p><strong>If adding a new media type requires changing the core platform, the architecture is wrong.</strong></p>
+</blockquote>
+<p>Core knows nothing about movies, TV, music, or books. All domain logic lives in modules.</p>
+<h3>Contract Contributions</h3>
+<ul>
+<li><strong>Core contracts</strong> — interfaces in <code>pkg/contracts/</code> that define fabric infrastructure (event bus, registry, storage, mesh, security). These are reviewed for minimalism and fabric-agnosticism.</li>
+<li><strong>Domain contracts</strong> — interfaces specific to a media domain (downloader, transcoder, metadata). These go in separate <code>github.com/Muxcore-Media/contracts-*</code> repos. Core never imports them.</li>
+</ul>
+<h3>New Contracts Checklist</h3>
+<p>Before adding a new contract to <code>pkg/contracts/</code>:</p>
+<ol>
+<li>Is it truly fabric infrastructure, not domain-specific?</li>
+<li>Is it discoverable via <code>Registry.FindByCapability()</code>?</li>
+<li>Is the interface minimal (only methods modules actually need)?</li>
+<li>Are security considerations documented on the interface type?</li>
+<li>Is the contract documented in the wiki Contracts page and this skill?</li>
+</ol>
+<h3>Module Contributions</h3>
+<p>Modules are standalone binaries, not compile-time imports. See <a href="Writing-Modules.html">Writing Modules</a> for the sidecar pattern. Reference implementation: <a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a>.</p>
+<hr>
+<h2>PR Process</h2>
+<h3>Branching</h3>
+<ul>
+<li>Branch from <code>master</code></li>
+<li>Use descriptive branch names: <code>feat/description</code>, <code>fix/description</code>, <code>docs/description</code></li>
+<li>Keep branches focused — one concern per PR</li>
+</ul>
+<h3>Before Opening a PR</h3>
+<ol>
+<li><code>go build ./...</code> passes</li>
+<li><code>scripts/run_tests.sh</code> passes</li>
+<li><code>golangci-lint run</code> passes</li>
+<li>New code has tests</li>
+<li>New contracts are documented in the wiki</li>
+<li>Commit messages are descriptive</li>
+</ol>
+<h3>Commit Messages</h3>
+<pre><code>area: short description (max 72 chars)
+
+Longer explanation if needed. What changed and why.
+</code></pre>
+<p>Examples:</p>
+<ul>
+<li><code>contracts: add EncryptionProvider interface</code></li>
+<li><code>grpcmesh: fix heartbeat TLS guard for nil creds</code></li>
+<li><code>docs: update roadmap to separate contracts from implementations</code></li>
+</ul>
+<h3>Review</h3>
+<p>All PRs require review. CI must pass (build + test + lint). Doc-only PRs still require CI green.</p>
+<h3>Merging</h3>
+<p>Squash-merge to <code>master</code>. Branch protection requires PRs, blocks force push, blocks branch deletion.</p>
+<hr>
+<h2>Documentation</h2>
+<h3>Wiki</h3>
+<p>The wiki at <code>github.com/Muxcore-Media/core.wiki</code> is the primary user-facing documentation. When adding or changing a feature:</p>
+<ol>
+<li>Update the relevant wiki page</li>
+<li>If it&#39;s a new contract, add it to the Contracts page</li>
+<li>If it&#39;s a new config option, add it to the Configuration Reference</li>
+<li>Update the Roadmap if applicable</li>
+</ol>
+<p>Wiki changes are pushed directly to the wiki repo&#39;s <code>master</code> branch.</p>
+<h3>Code Documentation</h3>
+<ul>
+<li>All exported types, functions, and interfaces must have GoDoc comments</li>
+<li>Security-sensitive interfaces must document what callers and implementers must not log</li>
+<li>Credential-bearing types must implement <code>slog.LogValuer</code> for safe logging</li>
+</ul>
+<hr>
+<h2>Security</h2>
+<ul>
+<li><strong>Vulnerability reporting:</strong> See <a href="https://github.com/Muxcore-Media/core/blob/master/SECURITY.md">SECURITY.md</a></li>
+<li><strong>Secure coding:</strong> Follow OWASP Go-SCP guidelines</li>
+<li><strong>Never log credentials</strong> — use <code>slog.LogValuer</code> on config types with URLs</li>
+<li><strong>Constant-time comparison</strong> for security-sensitive string checks (join tokens, API keys)</li>
+<li><strong>TLS is required</strong> for production — gRPC refuses to start without it unless explicitly disabled</li>
+</ul>
+<hr>
+<h2>License</h2>
+<p>GPL-3.0. See <a href="https://github.com/Muxcore-Media/core/blob/master/LICENSE">LICENSE</a>.</p>
+
+    </main>
+  </div>
+</body>
+</html>

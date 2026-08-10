@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tasks · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html" class="active">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Tasks</h1>
+<p>Living end-user product checklist for MuxCore (installer, fixture-first media path, self-hosted CI).</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>This wiki page</strong></td>
+<td>Short pointer + constraints</td>
+</tr>
+<tr>
+<td><strong>Workspace</strong></td>
+<td>Canonical checklist: <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> (sibling of <code>_mvp/</code> in the local MuxCore multi-repo workspace)</td>
+</tr>
+<tr>
+<td><strong>Roadmap wiki page</strong></td>
+<td>Also redirects here — no separate checkbox roadmap</td>
+</tr>
+</tbody></table>
+<p>Previous per-module <code>ROADMAP.md</code> files and older wiki Roadmap checklists are <strong>retired</strong>. Do not add new “see ROADMAP” links; point at <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> or this page.</p>
+<h3>Constraints (same as workspace)</h3>
+<ul>
+<li>Laptop + GitHub <strong>free</strong> account only</li>
+<li>Self-hosted CI runners (<code>runs-on: self-hosted</code>); local registry for images</li>
+<li>Fixture / mock / httptest acquisition for product gates — <strong>no live pirate</strong> indexers or swarms as requirements</li>
+<li>No paid Actions / Packages / cloud IdP / debrid as hard dependencies</li>
+</ul>
+<h3>Doc entry points</h3>
+<ul>
+<li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>
+<li><a href="Deployment.html">Deployment</a> — single laptop, self-hosted CI, local registry</li>
+<li><a href="Configuration-Reference.html">Configuration Reference</a> — loom config and env overrides</li>
+<li><a href="Port-Map.html">Port Map</a> — canonical gRPC/HTTP ports for installer / <code>_mvp</code> (collision remaps)</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

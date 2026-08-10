@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Configuration Reference · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html" class="active">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Configuration Reference</h1>
+<p><strong>Every configuration option in MuxCore</strong> — config file keys, environment variables, CLI flags, and their defaults. Includes the <strong>laptop demo / installer</strong> env knobs (<code>DOWNLOADER_ENGINE=fixture</code>, <code>TMDB_FIXTURE</code>, mesh dial local, ports) used by <code>_mvp</code> and <code>muxcore-installer</code>.</p>
+<hr>
+<h2>Config File (<code>muxcore.json</code>)</h2>
+<p>Place <code>muxcore.json</code> in the working directory, or override the path with <code>MUXCORE_CONFIG</code>.</p>
+<h3>Top-Level Keys</h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>server</code></td>
+<td><code>ServerConfig</code></td>
+<td>HTTP server settings</td>
+</tr>
+<tr>
+<td><code>grpc</code></td>
+<td><code>GRPCConfig</code></td>
+<td>gRPC mesh settings</td>
+</tr>
+<tr>
+<td><code>log</code></td>
+<td><code>LogConfig</code></td>
+<td>Structured logging</td>
+</tr>
+<tr>
+<td><code>database</code></td>
+<td><code>DatabaseConfig</code></td>
+<td>Database connection (driver + URL)</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td><code>CacheConfig</code></td>
+<td>Cache connection (driver + URL)</td>
+</tr>
+<tr>
+<td><code>audit</code></td>
+<td><code>AuditConfig</code></td>
+<td>Audit logging</td>
+</tr>
+<tr>
+<td><code>modules</code></td>
+<td><code>map[string]any</code></td>
+<td>Per-module arbitrary configuration</td>
+</tr>
+</tbody></table>
+<h3><code>server</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>addr</code></td>
+<td>string</td>
+<td><code>:8080</code></td>
+<td>HTTP listen address (validated with <code>net.ResolveTCPAddr</code>)</td>
+</tr>
+<tr>
+<td><code>read_timeout</code></td>
+<td>int</td>
+<td><code>15</code></td>
+<td>Read timeout in seconds</td>
+</tr>
+<tr>
+<td><code>write_timeout</code></td>
+<td>int</td>
+<td><code>15</code></td>
+<td>Write timeout in seconds</td>
+</tr>
+<tr>
+<td><code>cert_file</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Path to TLS certificate PEM file</td>
+</tr>
+<tr>
+<td><code>key_file</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Path to TLS private key PEM file</td>
+</tr>
+<tr>
+<td><code>trusted_proxies</code></td>
+<td>[]string</td>
+<td>loopback (<code>127.0.0.0/8</code>, <code>::1/128</code>) when empty</td>
+<td>CIDRs whose <code>X-Forwarded-For</code> is trusted; no env override</td>
+</tr>
+</tbody></table>
+<h3><code>grpc</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>addr</code></td>
+<td>string</td>
+<td><code>:9090</code></td>
+<td>gRPC listen address (validated with <code>net.ResolveTCPAddr</code>)</td>
+</tr>
+<tr>
+<td><code>cert_file</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Path to TLS certificate PEM file</td>
+</tr>
+<tr>
+<td><code>key_file</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Path to TLS private key PEM file</td>
+</tr>
+<tr>
+<td><code>mtls_enabled</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Require mutual TLS</td>
+</tr>
+<tr>
+<td><code>ca_cert_file</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Path to CA cert for mTLS client verification (manual setup)</td>
+</tr>
+<tr>
+<td><code>ca_cert_dir</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Directory for internal auto-generated CA (<code>ca.crt</code> + <code>ca.key</code>). Defaults to <code>&lt;data-dir&gt;/ca/</code></td>
+</tr>
+<tr>
+<td><code>seed_nodes</code></td>
+<td>[]string</td>
+<td><code>[]</code></td>
+<td>Cluster seed node addresses (<code>host:port</code>)</td>
+</tr>
+<tr>
+<td><code>join_token</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Pre-shared token required to join the cluster</td>
+</tr>
+<tr>
+<td><code>max_message_size_mb</code></td>
+<td>int</td>
+<td><code>32</code></td>
+<td>gRPC max message size in MB (affects storage streaming). Must be positive.</td>
+</tr>
+</tbody></table>
+<h3><code>log</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>level</code></td>
+<td>string</td>
+<td><code>info</code></td>
+<td>Log level: <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code></td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>string</td>
+<td><code>text</code></td>
+<td>Log format: <code>text</code>, <code>json</code></td>
+</tr>
+</tbody></table>
+<h3><code>database</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>driver</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Database driver (provided by database module)</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Database connection URL (credentials redacted in logs)</td>
+</tr>
+</tbody></table>
+<h3><code>cache</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>driver</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Cache driver (provided by cache module)</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>Cache connection URL (credentials redacted in logs)</td>
+</tr>
+</tbody></table>
+<h3><code>audit</code></h3>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>path</code></td>
+<td>string</td>
+<td><code>&quot;&quot;</code></td>
+<td>File path for JSONL audit log; empty = disabled</td>
+</tr>
+<tr>
+<td><code>max_size_mb</code></td>
+<td>int</td>
+<td><code>100</code></td>
+<td>Rotate audit log when file exceeds this size in MB</td>
+</tr>
+<tr>
+<td><code>max_rotated_files</code></td>
+<td>int</td>
+<td><code>5</code></td>
+<td>Number of rotated log files to keep (<code>.1</code>, <code>.2</code>, …)</td>
+</tr>
+</tbody></table>
+<h3><code>storage</code></h3>
+<p>Per-operation timeout for storage provider calls. A hung provider cannot block callers beyond these deadlines.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>read_timeout_seconds</code></td>
+<td>int</td>
+<td><code>30</code></td>
+<td>Deadline for Get, Exists, Stat, List, Stream</td>
+</tr>
+<tr>
+<td><code>write_timeout_seconds</code></td>
+<td>int</td>
+<td><code>300</code></td>
+<td>Deadline for Put (5 minutes — large files need time)</td>
+</tr>
+<tr>
+<td><code>delete_timeout_seconds</code></td>
+<td>int</td>
+<td><code>30</code></td>
+<td>Deadline for Delete, Move</td>
+</tr>
+</tbody></table>
+<h3>Example <code>muxcore.json</code></h3>
+<pre><code class="language-json">{
+  &quot;server&quot;: {
+    &quot;addr&quot;: &quot;:8080&quot;,
+    &quot;read_timeout&quot;: 15,
+    &quot;write_timeout&quot;: 15,
+    &quot;cert_file&quot;: &quot;/etc/ssl/server-cert.pem&quot;,
+    &quot;key_file&quot;: &quot;/etc/ssl/server-key.pem&quot;
+  },
+  &quot;grpc&quot;: {
+    &quot;addr&quot;: &quot;:9090&quot;,
+    &quot;cert_file&quot;: &quot;/etc/ssl/grpc-cert.pem&quot;,
+    &quot;key_file&quot;: &quot;/etc/ssl/grpc-key.pem&quot;,
+    &quot;mtls_enabled&quot;: true,
+    &quot;ca_cert_file&quot;: &quot;/etc/ssl/ca.pem&quot;,
+    &quot;seed_nodes&quot;: [&quot;node1:9090&quot;, &quot;node2:9090&quot;],
+    &quot;join_token&quot;: &quot;my-secret-cluster-token&quot;
+  },
+  &quot;log&quot;: {
+    &quot;level&quot;: &quot;info&quot;,
+    &quot;format&quot;: &quot;json&quot;
+  },
+  &quot;database&quot;: {
+    &quot;driver&quot;: &quot;postgres&quot;,
+    &quot;url&quot;: &quot;postgres://user:pass@host:5432/muxcore&quot;
+  },
+  &quot;cache&quot;: {
+    &quot;driver&quot;: &quot;redis&quot;,
+    &quot;url&quot;: &quot;redis://host:6379&quot;
+  },
+  &quot;audit&quot;: {
+    &quot;path&quot;: &quot;/var/log/muxcore/audit.jsonl&quot;
+  },
+  &quot;modules&quot;: {
+    &quot;downloader-native-torrent&quot;: {
+      &quot;listen_addr&quot;: &quot;http://localhost:8080&quot;,
+      &quot;poll_interval_seconds&quot;: 30
+    }
+  }
+}
+</code></pre>
+<hr>
+<h2>Environment Variables</h2>
+<p>All environment variables override their corresponding config file keys. Variables take <strong>highest precedence</strong>.</p>
+<h3>Server</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_CONFIG</code></td>
+<td>(config path)</td>
+<td><code>muxcore.json</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_SERVER_ADDR</code></td>
+<td><code>server.addr</code></td>
+<td><code>:8080</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_ADDR</code></td>
+<td><code>server.addr</code></td>
+<td>deprecated alias for <code>MUXCORE_SERVER_ADDR</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_SERVER_TLS_CERT</code></td>
+<td><code>server.cert_file</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_TLS_CERT</code></td>
+<td><code>server.cert_file</code></td>
+<td>deprecated alias</td>
+</tr>
+<tr>
+<td><code>MUXCORE_SERVER_TLS_KEY</code></td>
+<td><code>server.key_file</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_TLS_KEY</code></td>
+<td><code>server.key_file</code></td>
+<td>deprecated alias</td>
+</tr>
+<tr>
+<td><code>MUXCORE_SERVER_READ_TIMEOUT</code></td>
+<td><code>server.read_timeout</code></td>
+<td>(seconds)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_SERVER_WRITE_TIMEOUT</code></td>
+<td><code>server.write_timeout</code></td>
+<td>(seconds)</td>
+</tr>
+</tbody></table>
+<h3>gRPC</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_GRPC_TLS_CERT</code></td>
+<td><code>grpc.cert_file</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_TLS_KEY</code></td>
+<td><code>grpc.key_file</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_MTLS_ENABLED</code></td>
+<td><code>grpc.mtls_enabled</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_MTLS_CA</code></td>
+<td><code>grpc.ca_cert_file</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_CA_CERT_DIR</code></td>
+<td><code>grpc.ca_cert_dir</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_SEED_NODES</code></td>
+<td><code>grpc.seed_nodes</code></td>
+<td><code>&quot;&quot;</code> (comma-separated)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_JOIN_TOKEN</code></td>
+<td><code>grpc.join_token</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_CLUSTER_JOIN_TOKEN</code></td>
+<td><code>grpc.join_token</code></td>
+<td>fallback if <code>MUXCORE_GRPC_JOIN_TOKEN</code> unset</td>
+</tr>
+<tr>
+<td><code>MUXCORE_INSECURE_DISABLE_TLS</code></td>
+<td>(behavior flag)</td>
+<td>unset</td>
+</tr>
+</tbody></table>
+<h3>Logging</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_LOG_LEVEL</code></td>
+<td><code>log.level</code></td>
+<td><code>info</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_LOG_FORMAT</code></td>
+<td><code>log.format</code></td>
+<td><code>text</code></td>
+</tr>
+</tbody></table>
+<h3>Database &amp; Cache</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_DATABASE_DRIVER</code></td>
+<td><code>database.driver</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_DATABASE_URL</code></td>
+<td><code>database.url</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_CACHE_DRIVER</code></td>
+<td><code>cache.driver</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_CACHE_URL</code></td>
+<td><code>cache.url</code></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+</tbody></table>
+<h3>Audit</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_AUDIT_PATH</code></td>
+<td><code>audit.path</code></td>
+<td><code>&quot;&quot;</code> (disabled)</td>
+</tr>
+</tbody></table>
+<h3>Spool</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_SPOOL_ALLOWED_HOSTS</code></td>
+<td><code>spool.allowed_hosts</code></td>
+<td><code>&quot;&quot;</code> (comma-separated host allowlist for spool URLs)</td>
+</tr>
+</tbody></table>
+<h3>Event Bus</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_EVENT_JOURNAL_PATH</code></td>
+<td>Directory for event WAL (write-ahead log). Enables persistence and <code>SubscribeFrom</code> replay.</td>
+<td><code>&quot;&quot;</code> (disabled)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_EVENT_REPLAY</code></td>
+<td>Replay WAL events to late subscribers on startup</td>
+<td><code>true</code></td>
+</tr>
+</tbody></table>
+<h3>Storage (built-in local FS)</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_STORAGE_DIR</code></td>
+<td>When set, core registers a built-in local filesystem storage provider rooted at this path (used by laptop demo / installer)</td>
+<td><code>&quot;&quot;</code> (no built-in provider; wait for a storage module)</td>
+</tr>
+</tbody></table>
+<h3>Debug &amp; Observability</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_DEBUG_ENABLE</code></td>
+<td>Enable pprof endpoints at <code>/debug/pprof/</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_METRICS_ENABLE</code></td>
+<td>Enable Prometheus metrics at <code>/metrics</code></td>
+<td><code>false</code></td>
+</tr>
+</tbody></table>
+<h3>Security (Insecure Dev Mode)</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_INSECURE_DISABLE_TLS</code></td>
+<td>Bypass TLS requirement for HTTP and gRPC (<code>true</code> / <code>1</code>)</td>
+<td>unset (TLS required)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_DEV_TLS_SKIP</code></td>
+<td>Dev alias accepted alongside insecure-disable for local lab skips</td>
+<td>unset</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Removed (do not use):</strong> <code>MUXCORE_GRPC_REQUIRE_DISCOVERY_AUTH</code> and <code>MUXCORE_GRPC_REQUIRE_EVENTS_AUTH</code>. As of <code>core@v0.5.0</code>, discovery/event auth is not toggled by those env vars. A fixed public allowlist opens registration, common Discovery RPCs (<code>FindByCapability</code>, <code>FindByRole</code>, <code>ListAll</code>, <code>Members</code>, <code>Watch</code>, <code>Resolve</code>, …), Health <code>Check</code>, and selected Event RPCs so operator UIs and peer fan-out work without a bearer mesh identity. Everything else still requires Authorizer + IdentityProvider.</p>
+</blockquote>
+<hr>
+<h2>Laptop demo / installer env (<code>_mvp</code> + <code>muxcore-installer</code>)</h2>
+<p>These knobs are <strong>not</strong> loom <code>muxcore.json</code> keys. They come from the installer <code>.env</code>, <code>_mvp/.env.example</code>, and host start scripts. The supported laptop path is <strong>fixture-only</strong>: no live pirate indexers, no BitTorrent swarm, no Apibay.</p>
+<p>Canonical sources: <a href="../_mvp/.env.example"><code>_mvp/.env.example</code></a>, <a href="../muxcore-installer/.env.example"><code>muxcore-installer/.env.example</code></a>, and <a href="Getting-Started.html">Getting Started</a> (fixture-first chapter).</p>
+<h3>Fixture path (supported defaults)</h3>
+<p>Copy these for a first laptop run. Leave live-acquisition variables unset.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Demo default</th>
+<th>Where it applies</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_INSECURE_DISABLE_TLS</code></td>
+<td><code>true</code></td>
+<td><code>muxcored</code> + every sidecar</td>
+<td>Plaintext HTTP/gRPC for local lab only. Required for host MVP / installer laptop defaults. Never use on a shared or internet-facing host.</td>
+</tr>
+<tr>
+<td><code>DOWNLOADER_ENGINE</code></td>
+<td><code>fixture</code></td>
+<td><code>downloader-native-torrent</code></td>
+<td>Offline engine: writes a parseable <code>.mkv</code> under the downloads dir and completes immediately — no DHT/swarm.</td>
+</tr>
+<tr>
+<td><code>TMDB_FIXTURE</code></td>
+<td><code>1</code></td>
+<td><code>metadata-tmdb</code></td>
+<td>Serves offline Fight Club / Breaking Bad metadata for Search &amp; details. No TMDB network or API key.</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_ACQUISITION</code></td>
+<td>unset / <code>0</code></td>
+<td><code>_mvp/smoke.sh</code>, installer smoke</td>
+<td>Must stay off for the product gate. Only exact <code>1</code> enables the live section, and only when <code>PIRATEBAY_API_BASE</code> is also set.</td>
+</tr>
+<tr>
+<td><code>PIRATEBAY_API_BASE</code></td>
+<td><strong>unset</strong></td>
+<td>Host/compose + <code>indexer-piratebay</code></td>
+<td><strong>Opt-in only.</strong> Leave unset so the indexer is not started (host) / soft-empty. Demo Dispatch still works via fixture magnets.</td>
+</tr>
+<tr>
+<td><code>MUXCORE_MESH_DIAL_LOCAL</code></td>
+<td><code>true</code> (installer / host)</td>
+<td>Modules that dial peers from discovery (<code>media-automation</code>, <code>health-monitor</code>, <code>request-media</code>, admin paths, …)</td>
+<td>Rewrites empty / wildcard discovery hosts (<code>:port</code>, <code>0.0.0.0</code>) to <code>127.0.0.1:port</code> so host-process sidecars can reach each other. Compose/Docker DNS usually leaves this unset.</td>
+</tr>
+<tr>
+<td><code>MUXCORE_STORAGE_DIR</code></td>
+<td><code>./data/storage</code></td>
+<td><code>muxcored</code></td>
+<td>Enables built-in local FS storage for the demo data dir.</td>
+</tr>
+<tr>
+<td><code>MUXCORE_LOG_LEVEL</code></td>
+<td><code>info</code></td>
+<td><code>muxcored</code></td>
+<td>Same as loom <code>log.level</code>.</td>
+</tr>
+<tr>
+<td><code>MUXCORE_CONFIG</code></td>
+<td><code>./muxcore.json</code> (installer)</td>
+<td><code>muxcored</code></td>
+<td>Config file path.</td>
+</tr>
+</tbody></table>
+<p>Also leave <code>TMDB_API_KEY</code> unset when <code>TMDB_FIXTURE=1</code>. Optional live TMDB is operator choice later, not part of the demo gate.</p>
+<h3>Mesh address &amp; client dial targets</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Demo default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_MESH_ADDR</code></td>
+<td><code>127.0.0.1:9090</code></td>
+<td>Core gRPC mesh as seen by smoke / listmodules / host scripts (not a loom config key; scripts and modules also accept <code>MUXCORE_GRPC_ADDR</code>).</td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_ADDR</code></td>
+<td>same mesh host:port</td>
+<td>Sidecar SDK: address of core’s gRPC mesh to register against.</td>
+</tr>
+</tbody></table>
+<h3>Smoke URLs &amp; timeouts</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Demo default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SMOKE_CORE_URL</code></td>
+<td><code>http://127.0.0.1:8080</code></td>
+<td>Core HTTP <code>/health</code> probe</td>
+</tr>
+<tr>
+<td><code>SMOKE_API_URL</code></td>
+<td><code>http://127.0.0.1:18080</code></td>
+<td><code>api-rest</code> base (<code>/api/v1/...</code>)</td>
+</tr>
+<tr>
+<td><code>SMOKE_ADMIN_URL</code></td>
+<td><code>http://localhost:8082</code></td>
+<td>Admin UI URL for smoke / VIEW-ME</td>
+</tr>
+<tr>
+<td><code>SMOKE_JELLYFIN_URL</code></td>
+<td><code>http://127.0.0.1:8475</code></td>
+<td>Soft Jellyfin bridge probe</td>
+</tr>
+<tr>
+<td><code>SMOKE_TIMEOUT_SEC</code></td>
+<td><code>180</code> (<code>_mvp</code>) / <code>120</code> (installer)</td>
+<td>Overall smoke wait budget</td>
+</tr>
+</tbody></table>
+<h3>Library / auth bootstrap (lab + installer)</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Demo default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MVP_LIBRARY_ROOT</code></td>
+<td><code>./data/library</code></td>
+<td>Movie library root for scanner / movies module</td>
+</tr>
+<tr>
+<td><code>MVP_TV_LIBRARY_ROOT</code></td>
+<td><code>./data/library/tv</code></td>
+<td>TV library root</td>
+</tr>
+<tr>
+<td><code>MVP_DOWNLOADS_DIR</code></td>
+<td><code>./data/downloads</code></td>
+<td>Download / watch directory (fixture engine writes here)</td>
+</tr>
+<tr>
+<td><code>MVP_TOKEN_FILE</code></td>
+<td><code>./run/admin.token</code></td>
+<td>Bearer token written by bootstrap-auth</td>
+</tr>
+<tr>
+<td><code>MVP_ADMIN_USER</code> / <code>MVP_ADMIN_PASSWORD</code></td>
+<td><code>admin</code> / <code>admin-dev-only</code></td>
+<td>Dev-only local auth bootstrap — <strong>not for production</strong></td>
+</tr>
+<tr>
+<td><code>MVP_ENABLE_MEDIA_UI</code></td>
+<td><code>1</code> (<code>_mvp</code>) / <code>0</code> (installer default)</td>
+<td>Whether host stack expects consumer SPA bring-up</td>
+</tr>
+<tr>
+<td><code>AUTH_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9403</code></td>
+<td><code>auth-local</code> gRPC for bootstrap / clients</td>
+</tr>
+<tr>
+<td><code>AUTH_HTTP_URL</code></td>
+<td><code>http://127.0.0.1:9401</code></td>
+<td><code>auth-local</code> HTTP</td>
+</tr>
+</tbody></table>
+<h3>Sidecar listen / client addresses (ports)</h3>
+<p>Used so host-mode processes and smoke clients agree on ports. Compose maps the same numbers into the container network.</p>
+<p><strong>Canonical table (all MVP modules, remapped collision ports, opt-in indexer/ffprobe):</strong> <a href="Port-Map.html">Port Map</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Demo default</th>
+<th>Service</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>API_REST_HTTP_ADDR</code> / <code>API_REST_GRPC_ADDR</code></td>
+<td><code>:18080</code> / <code>:9400</code></td>
+<td><code>api-rest</code> (HTTP remapped off core <code>:8080</code>)</td>
+</tr>
+<tr>
+<td><code>MOVIES_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9420</code></td>
+<td><code>media-movies</code></td>
+</tr>
+<tr>
+<td><code>TVSHOWS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9440</code></td>
+<td><code>media-tvshows</code></td>
+</tr>
+<tr>
+<td><code>AUTOMATION_GRPC_CLIENT_ADDR</code></td>
+<td><code>127.0.0.1:9460</code></td>
+<td><code>media-automation</code></td>
+</tr>
+<tr>
+<td><code>DOWNLOADER_GRPC_CLIENT_ADDR</code></td>
+<td><code>127.0.0.1:9461</code></td>
+<td><code>downloader-native-torrent</code> (remapped off <code>:9460</code>)</td>
+</tr>
+<tr>
+<td><code>SCANNER_GRPC_CLIENT_ADDR</code></td>
+<td><code>127.0.0.1:9470</code></td>
+<td><code>media-scanner</code></td>
+</tr>
+<tr>
+<td><code>JELLYFIN_GRPC_CLIENT_ADDR</code></td>
+<td><code>127.0.0.1:9475</code></td>
+<td><code>jellyfin</code> bridge</td>
+</tr>
+<tr>
+<td><code>ROOTS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9540</code></td>
+<td><code>media-root-folders</code> (<code>_mvp</code>)</td>
+</tr>
+<tr>
+<td><code>HEALTH_MONITOR_GRPC_CLIENT_ADDR</code></td>
+<td><code>127.0.0.1:9202</code></td>
+<td><code>health-monitor</code> (installer)</td>
+</tr>
+</tbody></table>
+<p>Core loom ports (not env overrides in the demo <code>.env</code>, but expected defaults): HTTP <strong><code>:8080</code></strong>, gRPC mesh <strong><code>:9090</code></strong>. Admin UI listens on <strong><code>:8082</code></strong> (remapped off <code>:8080</code>). Consumer SPA (when enabled) is typically <strong><code>:5173</code></strong>. Indexer gRPC <strong><code>:9485</code></strong> only when live acquisition is opted in (remapped off ffprobe <code>:9480</code>).</p>
+<p>Optional soft Jellyfin server (not required for demo): <code>JELLYFIN_BASE_URL</code>, <code>JELLYFIN_API_KEY</code>, <code>JELLYFIN_WEBHOOK_SECRET</code> — leave empty for unconfigured-bridge smoke.</p>
+<h3>Live acquisition (operator opt-in only — not a product gate)</h3>
+<p>Do <strong>not</strong> set these for install, CI, or the supported laptop demo. They exist for operators who already accept VPN / swarm risk and explicitly want live torrents.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>When set</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PIRATEBAY_API_BASE</code></td>
+<td>e.g. Apibay URL</td>
+<td>Host <code>run-host.sh</code> starts <code>indexer-piratebay</code>; Search can return live results</td>
+</tr>
+<tr>
+<td><code>DOWNLOADER_ENGINE</code></td>
+<td><code>anacrolix</code></td>
+<td>Real BitTorrent client instead of fixture</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_ACQUISITION</code></td>
+<td><code>1</code></td>
+<td>Smoke appends live acquisition checks <strong>only if</strong> <code>PIRATEBAY_API_BASE</code> is also set</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_TIMEOUT</code></td>
+<td>e.g. <code>3m</code></td>
+<td>Live section timeout (<code>_mvp</code>)</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_MIN_SEEDERS</code></td>
+<td>e.g. <code>1</code></td>
+<td>Minimum seeders gate for live smoke</td>
+</tr>
+<tr>
+<td><code>SMOKE_LIVE_MIN_BYTES</code></td>
+<td>e.g. <code>131072</code></td>
+<td>Minimum downloaded bytes for live smoke</td>
+</tr>
+</tbody></table>
+<p>If <code>SMOKE_LIVE_ACQUISITION=1</code> but <code>PIRATEBAY_API_BASE</code> is empty, smoke skips the live section and stays on the fixture path.</p>
+<h3>Minimal demo <code>.env</code> sketch</h3>
+<pre><code class="language-bash"># Loom / TLS (laptop only)
+MUXCORE_INSECURE_DISABLE_TLS=true
+MUXCORE_LOG_LEVEL=info
+MUXCORE_STORAGE_DIR=./data/storage
+MUXCORE_MESH_ADDR=127.0.0.1:9090
+MUXCORE_MESH_DIAL_LOCAL=true
+
+# Fixture acquisition (supported gate)
+DOWNLOADER_ENGINE=fixture
+TMDB_FIXTURE=1
+# PIRATEBAY_API_BASE=          # leave unset
+# SMOKE_LIVE_ACQUISITION=      # leave unset / 0
+
+# Smoke probes
+SMOKE_CORE_URL=http://127.0.0.1:8080
+SMOKE_API_URL=http://127.0.0.1:18080
+SMOKE_ADMIN_URL=http://localhost:8082
+SMOKE_TIMEOUT_SEC=180
+
+# Paths + bootstrap
+MVP_LIBRARY_ROOT=./data/library
+MVP_TV_LIBRARY_ROOT=./data/library/tv
+MVP_DOWNLOADS_DIR=./data/downloads
+MVP_TOKEN_FILE=./run/admin.token
+MVP_ADMIN_USER=admin
+MVP_ADMIN_PASSWORD=admin-dev-only
+</code></pre>
+<p>See <a href="Getting-Started.html">Getting Started</a> for install paths and <a href="Deployment.html">Deployment</a> for production TLS (no insecure-disable).</p>
+<hr>
+<h2>CLI Flags</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--tag</code></td>
+<td>(none)</td>
+<td>Tag name to load from spool (e.g., <code>default</code>)</td>
+</tr>
+<tr>
+<td><code>--spool</code></td>
+<td><code>https://github.com/Muxcore-Media/spool</code></td>
+<td>Spool URL to fetch tags from</td>
+</tr>
+<tr>
+<td><code>--version</code></td>
+<td>—</td>
+<td>Print version and exit</td>
+</tr>
+</tbody></table>
+<p>Without <code>--tag</code>, core starts as a bare loom — HTTP server + gRPC mesh, zero modules.</p>
+<hr>
+<h2>Config Hot-Reload (SIGHUP)</h2>
+<p>Send <code>SIGHUP</code> to apply config file changes at runtime:</p>
+<pre><code class="language-bash">kill -HUP $(pidof muxcored)
+</code></pre>
+<p><strong>Applied live (no restart needed):</strong></p>
+<ul>
+<li><code>log.level</code>, <code>log.format</code></li>
+<li><code>grpc.seed_nodes</code></li>
+</ul>
+<p><strong>Requires restart (warning logged, change NOT applied):</strong></p>
+<ul>
+<li><code>audit.path</code> — the file handle stays open to the original file until restart</li>
+<li><code>server.addr</code>, <code>grpc.addr</code></li>
+<li>Any TLS cert/key files</li>
+<li><code>database</code>, <code>cache</code> settings</li>
+<li><code>grpc.join_token</code></li>
+</ul>
+<hr>
+<h2>TLS Configuration</h2>
+<h3>Development Mode (No TLS)</h3>
+<p>Set <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> to bypass TLS requirement for both HTTP and gRPC. The server logs a warning. Only use for local development.</p>
+<pre><code class="language-bash">MUXCORE_INSECURE_DISABLE_TLS=true muxcored --tag default
+</code></pre>
+<h3>Production TLS (Server)</h3>
+<pre><code class="language-bash">export MUXCORE_TLS_CERT=/etc/ssl/server-cert.pem
+export MUXCORE_TLS_KEY=/etc/ssl/server-key.pem
+</code></pre>
+<h3>Production TLS (gRPC)</h3>
+<pre><code class="language-bash">export MUXCORE_GRPC_TLS_CERT=/etc/ssl/grpc-cert.pem
+export MUXCORE_GRPC_TLS_KEY=/etc/ssl/grpc-key.pem
+</code></pre>
+<h3>Mutual TLS (mTLS) — External CA</h3>
+<pre><code class="language-bash">export MUXCORE_GRPC_TLS_CERT=/etc/ssl/grpc-cert.pem
+export MUXCORE_GRPC_TLS_KEY=/etc/ssl/grpc-key.pem
+export MUXCORE_GRPC_MTLS_ENABLED=true
+export MUXCORE_GRPC_MTLS_CA=/etc/ssl/ca.pem
+</code></pre>
+<h3>Mutual TLS (mTLS) — Internal CA</h3>
+<p>Core can auto-generate its own CA. No external CA setup needed:</p>
+<pre><code class="language-bash">export MUXCORE_GRPC_MTLS_ENABLED=true
+export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
+</code></pre>
+<p>The internal CA creates <code>ca.crt</code> and <code>ca.key</code> in the specified directory on first start. Core-spawned modules get auto-issued certificates. See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> for full details.</p>
+<hr>
+<h2>Per-Module Configuration</h2>
+<p>The <code>modules</code> map in <code>muxcore.json</code> passes arbitrary configuration to individual modules by their module ID:</p>
+<pre><code class="language-json">{
+  &quot;modules&quot;: {
+    &quot;downloader-native-torrent&quot;: {
+      &quot;listen_addr&quot;: &quot;http://192.168.1.50:8080&quot;,
+      &quot;username&quot;: &quot;admin&quot;,
+      &quot;poll_interval_seconds&quot;: 30
+    },
+    &quot;media-transcoder&quot;: {
+      &quot;gpu&quot;: &quot;nvidia&quot;,
+      &quot;max_concurrent&quot;: 2
+    }
+  }
+}
+</code></pre>
+<p>Modules read their config by looking up their own module ID in the <code>Modules</code> map. There is no environment variable equivalent — per-module config is file-only.</p>
+
+    </main>
+  </div>
+</body>
+</html>

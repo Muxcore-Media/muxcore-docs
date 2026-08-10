@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Module System · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html" class="active">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Module System</h1>
+<p><strong>Everything in MuxCore is a module.</strong> Downloading, indexing, playback, transcoding, storage, notifications — every feature is a pluggable module behind a standard interface. This page explains how modules work, how they find each other, and every type of module you can add.</p>
+<hr>
+<h2>What Is a Module?</h2>
+<p>A module is a <strong>standalone binary</strong> that:</p>
+<ol>
+<li>Implements a standard lifecycle (Init, Start, Stop, Health)</li>
+<li>Declares its role, capabilities, and which contracts it implements</li>
+<li>Registers with the platform via gRPC at startup</li>
+<li>Can be discovered by other modules at runtime</li>
+</ol>
+<p>Think of a module like an app on your phone. Each one does something specific — a downloader, a media manager, a notification sender. But unlike phone apps, modules can see each other and work together automatically.</p>
+<hr>
+<h2>Module Lifecycle</h2>
+<p>Every module goes through the same lifecycle:</p>
+<pre><code>Register → Init → Start → Running → Stopping → Stopped
+                            ↓
+                         Degraded
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Registered</strong></td>
+<td>Module has called <code>ModuleRegistration.Register()</code> and been accepted by core</td>
+</tr>
+<tr>
+<td><strong>Starting</strong></td>
+<td>Module is being initialized</td>
+</tr>
+<tr>
+<td><strong>Running</strong></td>
+<td>Module is active and working</td>
+</tr>
+<tr>
+<td><strong>Degraded</strong></td>
+<td>Module is running but with reduced capability</td>
+</tr>
+<tr>
+<td><strong>Stopping</strong></td>
+<td>Module is shutting down</td>
+</tr>
+<tr>
+<td><strong>Stopped</strong></td>
+<td>Module has cleanly shut down</td>
+</tr>
+</tbody></table>
+<p>A module becomes <strong>Degraded</strong> when it depends on an external service that isn&#39;t available. For example, if a metadata module cannot reach TMDB, it starts in degraded state.</p>
+<hr>
+<h2>How Modules Register</h2>
+<p>Modules are standalone binaries that connect to core&#39;s gRPC mesh. The registration flow:</p>
+<pre><code>Module binary starts with:
+  --muxcore-mesh-addr localhost:9090
+  --muxcore-module-id downloader-native-torrent
+
+1. Dial core&#39;s gRPC mesh
+2. Call ModuleRegistration.Register() RPC
+3. Receive RegisterResponse { mesh_addr, node_id }
+4. Use mesh_addr for all subsequent service discovery
+</code></pre>
+<pre><code class="language-go">// Sidecar entry point (cmd/module/main.go)
+conn, _ := grpc.NewClient(*meshAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+regClient := modulev1.NewModuleRegistrationClient(conn)
+
+info := mod.Info()
+
+resp, _ := regClient.Register(context.Background(), &amp;modulev1.RegisterRequest{
+    ModuleId: *moduleID,
+    ModuleInfo: &amp;modulev1.ModuleInfo{
+        Id:             info.ID,
+        Name:           info.Name,
+        Version:        info.Version,
+        Roles:          info.Roles,
+        Description:    info.Description,
+        Author:         info.Author,
+        Capabilities:   info.Capabilities,
+        DependsOn:      info.DependsOn,
+        MinCoreVersion: info.MinCoreVersion,
+        HttpAddr:       info.HTTPAddr,
+    },
+    MeshAddr: *meshAddr,
+})
+// resp.MeshAddr  → use for all other gRPC services
+// resp.NodeId    → core node identifier
+</code></pre>
+<p>All modules use this same registration pattern. Core spawns module binaries when started with <code>--tag</code>, and each module registers itself.</p>
+<hr>
+<h2>Module Dependencies (DependsOn)</h2>
+<p>Modules can declare dependencies on other modules via the <code>DependsOn</code> field in <code>ModuleInfo</code>:</p>
+<pre><code class="language-go">func (m *Module) Info() contracts.ModuleInfo {
+    return contracts.ModuleInfo{
+        ID:        &quot;media-transcoder&quot;,
+        Name:      &quot;FFmpeg Transcoder&quot;,
+        DependsOn: []string{&quot;storage-local&quot;, &quot;cache-redis&quot;},
+    }
+}
+</code></pre>
+<h3>Dependency Ordering</h3>
+<p>Core uses <code>Registry.StartupOrder()</code> to compute a dependency-respecting module initialization order. Modules listed in <code>DependsOn</code> are guaranteed to be initialized before the module that depends on them.</p>
+<pre><code class="language-go">order, err := reg.StartupOrder()
+// Returns [&quot;storage-local&quot;, &quot;cache-redis&quot;, &quot;media-transcoder&quot;, ...]
+</code></pre>
+<p>Cyclic dependencies are detected and return an error.</p>
+<h3>Reverse Dependency Lookup</h3>
+<p><code>Registry.DependencyGraph(id)</code> returns all modules that depend on a given module — useful for impact analysis before stopping or removing a module:</p>
+<pre><code class="language-go">dependents, err := reg.DependencyGraph(&quot;storage-local&quot;)
+// Returns [&quot;media-transcoder&quot;, &quot;media-movies&quot;, ...]
+</code></pre>
+<hr>
+<h2>The Sidecar Bridge — gRPC Services</h2>
+<p>Module binaries communicate with core entirely through gRPC. Module-facing services and admin services are served on the same gRPC port (default <code>:9090</code>):</p>
+<h3>Module Services</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Proto</th>
+<th>Key RPCs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ModuleRegistration</code></td>
+<td><code>module/v1/</code></td>
+<td><code>Register()</code>, <code>Unregister()</code>, <code>BootstrapRegister()</code></td>
+</tr>
+<tr>
+<td><code>DiscoveryService</code></td>
+<td><code>discovery/v1/</code></td>
+<td><code>FindByCapability()</code>, <code>FindByRole()</code>, <code>Resolve()</code>, <code>ListAll()</code></td>
+</tr>
+<tr>
+<td><code>StorageService</code></td>
+<td><code>storage/v1/</code></td>
+<td><code>Put()</code> / <code>Get()</code> (streaming), <code>Delete()</code>, <code>Stat()</code>, <code>List()</code>, <code>Capabilities()</code></td>
+</tr>
+<tr>
+<td><code>EventService</code></td>
+<td><code>events/v1/</code></td>
+<td><code>Publish()</code>, <code>Subscribe()</code>, <code>Request()</code></td>
+</tr>
+<tr>
+<td><code>ModuleMesh</code></td>
+<td><code>mesh/v1/</code></td>
+<td><code>Call()</code>, <code>StreamCall()</code></td>
+</tr>
+</tbody></table>
+<h3>Admin Services</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Proto</th>
+<th>Key RPCs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SpoolService</code></td>
+<td><code>spool/v1/</code></td>
+<td><code>ListSpools()</code>, <code>ListTags()</code>, <code>FetchTag()</code>, <code>DeployTag()</code></td>
+</tr>
+<tr>
+<td><code>ModuleLifecycleService</code></td>
+<td><code>lifecycle/v1/</code></td>
+<td><code>ListModules()</code>, <code>SpawnModule()</code>, <code>StopModule()</code>, <code>RestartModule()</code></td>
+</tr>
+<tr>
+<td><code>AuditService</code></td>
+<td><code>audit/v1/</code></td>
+<td><code>Query()</code>, <code>Export()</code>, <code>VerifyChain()</code>, <code>Log()</code></td>
+</tr>
+</tbody></table>
+<p>These replace the old in-process <code>Fabric</code> struct. Same philosophy, gRPC transport.</p>
+<hr>
+<h2>Service Discovery</h2>
+<p>Modules discover each other through the <code>DiscoveryService</code> gRPC — there are three ways to find a module:</p>
+<h3>By Role (broad)</h3>
+<pre><code class="language-go">disc := discoveryv1.NewDiscoveryServiceClient(conn)
+resp, _ := disc.FindByRole(ctx, &amp;discoveryv1.FindByRoleRequest{Role: &quot;downloader&quot;})
+for _, mod := range resp.Modules {
+    // mod.Id, mod.Capabilities, mod.Roles, mod.InfoJson
+}
+</code></pre>
+<p>Roles are just strings — there&#39;s no fixed list. A module can declare any roles it wants.</p>
+<h3>By Capability (specific)</h3>
+<pre><code class="language-go">resp, _ := disc.FindByCapability(ctx, &amp;discoveryv1.FindByCapabilityRequest{Capability: &quot;secrets&quot;})
+</code></pre>
+<p>Capabilities are fine-grained tags that describe what a module can do.</p>
+<h3>By ID (direct)</h3>
+<pre><code class="language-go">resp, _ := disc.Resolve(ctx, &amp;discoveryv1.ResolveRequest{ModuleId: &quot;downloader-native-torrent&quot;})
+</code></pre>
+<h3>Storage Operations</h3>
+<pre><code class="language-go">store := storagev1.NewStorageServiceClient(conn)
+// Client-streaming upload
+stream, _ := store.Put(ctx)
+stream.Send(&amp;storagev1.PutRequest{Key: &quot;downloads/abc/file.mkv&quot;, TotalSize: size})
+stream.Send(&amp;storagev1.PutRequest{Chunk: data})
+resp, _ := stream.CloseAndRecv()
+</code></pre>
+<h3>Event Publishing</h3>
+<pre><code class="language-go">events := eventsv1.NewEventServiceClient(conn)
+events.Publish(ctx, &amp;eventsv1.PublishRequest{
+    Event: &amp;eventsv1.Event{
+        Type:    &quot;download.completed&quot;,
+        Source:  &quot;downloader-native-torrent&quot;,
+        Payload: jsonPayload,
+    },
+})
+</code></pre>
+<h3>Cross-Module Calls</h3>
+<pre><code class="language-go">mesh := meshv1.NewModuleMeshClient(conn)
+resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
+    TargetModule: &quot;media-transcoder&quot;,
+    Method:       &quot;Status&quot;,
+    Payload:      jsonPayload,
+})
+</code></pre>
+<hr>
+<h2>Contracts and Type Safety</h2>
+<p>Module binaries communicate via protobuf on the wire. Domain contracts ship as gRPC services in the canonical <code>contracts-*</code> repos. A downloader module that registers <code>DownloaderService</code> from <code>github.com/Muxcore-Media/contracts-downloader</code> exposes the same RPCs a media manager dials via <code>DownloaderServiceClient</code> (capability <code>&quot;downloader&quot;</code>; impl IDs like <code>downloader.native.torrent</code>).</p>
+<p>For third-party modules using their own contract repos, the <strong>contracts-reconciler</strong> handles structural compatibility checking and <code>go.mod replace</code> directives at import time.</p>
+<hr>
+<h2>Services Discovered at Runtime</h2>
+<p>Infrastructure services are discovered at runtime via <code>DiscoveryService.FindByCapability()</code>. Core exposes module mesh services (<code>Discovery</code>, <code>Storage</code>, <code>Event</code>, <code>ModuleMesh</code>, <code>ModuleRegistration</code>) plus <code>Health</code> and admin services (<code>Spool</code>, <code>ModuleLifecycle</code>, <code>Audit</code>). Everything else is optional and module-provided (except core built-ins such as WorkerPool, DeadLetter, Retry, Idempotency, and EventStore).</p>
+<h3>Complete Service Discovery Table</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Capability String</th>
+<th>Interface</th>
+<th>What It Provides</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Secrets</td>
+<td><code>&quot;secrets&quot;</code></td>
+<td><code>SecretsProvider</code></td>
+<td>API keys, passwords, tokens</td>
+</tr>
+<tr>
+<td>Database</td>
+<td><code>&quot;database&quot;</code></td>
+<td><code>DatabaseProvider</code></td>
+<td>Persistent storage (SQLite, Postgres)</td>
+</tr>
+<tr>
+<td>Cache</td>
+<td><code>&quot;cache&quot;</code></td>
+<td><code>CacheProvider</code></td>
+<td>Ephemeral state, locks, pub/sub</td>
+</tr>
+<tr>
+<td>Cache Layer</td>
+<td><code>&quot;cache.local&quot;</code></td>
+<td><code>CacheLayer</code></td>
+<td>Read-through storage caching</td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td><code>&quot;metrics&quot;</code></td>
+<td><code>MetricsProvider</code></td>
+<td>Counters, gauges, histograms</td>
+</tr>
+<tr>
+<td>Tracing</td>
+<td><code>&quot;tracing&quot;</code></td>
+<td><code>TracingProvider</code></td>
+<td>Distributed request tracing</td>
+</tr>
+<tr>
+<td>Circuit Breaker</td>
+<td><code>&quot;circuitbreaker&quot;</code></td>
+<td><code>CircuitBreaker</code></td>
+<td>Fail-fast protection</td>
+</tr>
+<tr>
+<td>Config Watcher</td>
+<td><code>&quot;config.watcher&quot;</code></td>
+<td><code>ConfigWatcher</code></td>
+<td>Runtime service change notifications</td>
+</tr>
+<tr>
+<td>Dead Letter</td>
+<td><code>&quot;deadletter&quot;</code></td>
+<td><code>DeadLetterProvider</code></td>
+<td>Store and replay failed events</td>
+</tr>
+<tr>
+<td>Call Policy</td>
+<td><code>&quot;call.policy&quot;</code></td>
+<td><code>CallPolicyProvider</code></td>
+<td>Inter-module access control</td>
+</tr>
+<tr>
+<td>Identity</td>
+<td><code>&quot;identity&quot;</code></td>
+<td><code>IdentityProvider</code></td>
+<td>Extract caller identity from context</td>
+</tr>
+<tr>
+<td>Logging</td>
+<td><code>&quot;logging&quot;</code></td>
+<td><code>StructuredLogger</code></td>
+<td>Structured, leveled logging</td>
+</tr>
+<tr>
+<td>Retry</td>
+<td><code>&quot;retry&quot;</code></td>
+<td><code>RetryProvider</code></td>
+<td>Retry with backoff and jitter</td>
+</tr>
+<tr>
+<td>Idempotency</td>
+<td><code>&quot;idempotency&quot;</code></td>
+<td><code>IdempotencyProvider</code></td>
+<td>Prevent duplicate processing</td>
+</tr>
+<tr>
+<td>Feature Flags</td>
+<td><code>&quot;feature.flags&quot;</code></td>
+<td><code>FeatureFlagProvider</code></td>
+<td>Gradual rollouts, kill switches</td>
+</tr>
+<tr>
+<td>Serialization</td>
+<td><code>&quot;serialization&quot;</code></td>
+<td><code>SerializationProvider</code></td>
+<td>Content-type negotiation</td>
+</tr>
+<tr>
+<td>Encryption</td>
+<td><code>&quot;encryption&quot;</code></td>
+<td><code>EncryptionProvider</code></td>
+<td>Envelope encryption for data at rest</td>
+</tr>
+<tr>
+<td>Distributed Lock</td>
+<td><code>&quot;distributed.lock&quot;</code></td>
+<td><code>DistributedLockProvider</code></td>
+<td>Coordination across machines</td>
+</tr>
+<tr>
+<td>Data Redaction</td>
+<td><code>&quot;data.redaction&quot;</code></td>
+<td><code>DataRedactionProvider</code></td>
+<td>Strip PII before logging</td>
+</tr>
+<tr>
+<td>Event Store</td>
+<td><code>&quot;event.store&quot;</code></td>
+<td><code>EventStore</code></td>
+<td>Durable append-only event log</td>
+</tr>
+<tr>
+<td>Input Validation</td>
+<td><code>&quot;input.validate&quot;</code></td>
+<td><code>InputValidator</code></td>
+<td>Schema-based input validation</td>
+</tr>
+<tr>
+<td>Workflow Engine</td>
+<td><code>&quot;workflow.engine&quot;</code></td>
+<td><code>WorkflowEngine</code></td>
+<td>Multi-step tapestry orchestration</td>
+</tr>
+<tr>
+<td>Publish Policy</td>
+<td><code>&quot;publish.policy&quot;</code></td>
+<td><code>PublishPolicyProvider</code></td>
+<td>Event publication access control</td>
+</tr>
+</tbody></table>
+<p>If no module provides a capability, callers handle it gracefully — using a default, falling back to a simpler mode, or logging a warning. Every service is optional.</p>
+<hr>
+<h2>Types of Modules</h2>
+<h3>Core Infrastructure</h3>
+<p>These modules provide platform-level services that other modules depend on.</p>
+<table>
+<thead>
+<tr>
+<th>Module Type</th>
+<th>Role</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Auth Provider</strong></td>
+<td><code>&quot;auth&quot;</code></td>
+<td><code>AuthProvider</code> — authenticate users, validate tokens</td>
+</tr>
+<tr>
+<td><strong>Authorizer</strong></td>
+<td>—</td>
+<td><code>Authorizer</code> — check permissions</td>
+</tr>
+<tr>
+<td><strong>Rate Limiter</strong></td>
+<td>—</td>
+<td><code>RateLimiterProvider</code> — throttle API requests</td>
+</tr>
+<tr>
+<td><strong>Health Monitor</strong></td>
+<td>—</td>
+<td><code>HealthMonitor</code> — periodic module health checks</td>
+</tr>
+<tr>
+<td><strong>Cluster</strong></td>
+<td>—</td>
+<td><code>Cluster</code> — node membership, leader election</td>
+</tr>
+<tr>
+<td><strong>Worker Pool</strong></td>
+<td>—</td>
+<td><code>WorkerPool</code> — distributed task scheduling</td>
+</tr>
+<tr>
+<td><strong>Audit Logger</strong></td>
+<td>—</td>
+<td><code>AuditLogger</code> — record security-relevant actions</td>
+</tr>
+<tr>
+<td><strong>Call Policy</strong></td>
+<td>—</td>
+<td><code>CallPolicyProvider</code> — inter-module access control</td>
+</tr>
+</tbody></table>
+<h3>Media Capabilities</h3>
+<table>
+<thead>
+<tr>
+<th>Module Type</th>
+<th>Role / Capability</th>
+<th>Domain Contract</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Downloader</strong></td>
+<td><code>&quot;downloader&quot;</code></td>
+<td><code>contracts-downloader</code></td>
+</tr>
+<tr>
+<td><strong>Indexer</strong></td>
+<td><code>&quot;indexer&quot;</code></td>
+<td><code>contracts-indexer</code> — many modules may advertise this; callers (e.g. <code>media-automation</code>) fan out <code>Search</code> across all of them. A single module may still aggregate many sites via <code>ListIndexers</code>.</td>
+</tr>
+<tr>
+<td><strong>Media Library (admin)</strong></td>
+<td><code>&quot;media.library&quot;</code></td>
+<td><code>contracts-media-admin</code></td>
+</tr>
+<tr>
+<td><strong>Other media roles</strong></td>
+<td>(module-defined)</td>
+<td>May use local interfaces or future <code>contracts-*</code> packages</td>
+</tr>
+</tbody></table>
+<p>Media managers (<code>media-movies</code>, <code>media-tvshows</code>), playback, transcoder, metadata, and related modules exist in the workspace; not every type has a published standalone contract repo yet.</p>
+<h3>Storage</h3>
+<table>
+<thead>
+<tr>
+<th>Module Type</th>
+<th>Role</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Storage Provider</strong></td>
+<td><code>&quot;storage&quot;</code></td>
+<td><code>StorageProvider</code> — basic blob storage</td>
+</tr>
+<tr>
+<td><strong>Streamable</strong></td>
+<td>(capability)</td>
+<td><code>Streamable</code> — range-request streaming</td>
+</tr>
+<tr>
+<td><strong>Seekable</strong></td>
+<td>(capability)</td>
+<td><code>Seekable</code> — random access within files</td>
+</tr>
+<tr>
+<td><strong>Watchable</strong></td>
+<td>(capability)</td>
+<td><code>Watchable</code> — filesystem event notifications</td>
+</tr>
+<tr>
+<td><strong>Atomic Movable</strong></td>
+<td>(capability)</td>
+<td><code>AtomicMovable</code> — atomic file moves</td>
+</tr>
+<tr>
+<td><strong>Hardlinkable</strong></td>
+<td>(capability)</td>
+<td><code>Hardlinkable</code> — hardlink support</td>
+</tr>
+<tr>
+<td><strong>Tiered</strong></td>
+<td>(capability)</td>
+<td><code>TieredProvider</code> — hot/warm/cold storage tiering</td>
+</tr>
+</tbody></table>
+<h3>Infrastructure Services (Discovered)</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Capability</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Secrets</strong></td>
+<td><code>&quot;secrets&quot;</code></td>
+<td><code>SecretsProvider</code></td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td><code>&quot;database&quot;</code></td>
+<td><code>DatabaseProvider</code></td>
+</tr>
+<tr>
+<td><strong>Cache</strong></td>
+<td><code>&quot;cache&quot;</code></td>
+<td><code>CacheProvider</code></td>
+</tr>
+<tr>
+<td><strong>Cache Layer</strong></td>
+<td><code>&quot;cache.local&quot;</code></td>
+<td><code>CacheLayer</code></td>
+</tr>
+<tr>
+<td><strong>Metrics</strong></td>
+<td><code>&quot;metrics&quot;</code></td>
+<td><code>MetricsProvider</code></td>
+</tr>
+<tr>
+<td><strong>Tracing</strong></td>
+<td><code>&quot;tracing&quot;</code></td>
+<td><code>TracingProvider</code></td>
+</tr>
+<tr>
+<td><strong>Circuit Breaker</strong></td>
+<td><code>&quot;circuitbreaker&quot;</code></td>
+<td><code>CircuitBreaker</code></td>
+</tr>
+<tr>
+<td><strong>Config Watcher</strong></td>
+<td><code>&quot;config.watcher&quot;</code></td>
+<td><code>ConfigWatcher</code></td>
+</tr>
+<tr>
+<td><strong>Dead Letter</strong></td>
+<td><code>&quot;deadletter&quot;</code></td>
+<td><code>DeadLetterProvider</code></td>
+</tr>
+<tr>
+<td><strong>Identity</strong></td>
+<td><code>&quot;identity&quot;</code></td>
+<td><code>IdentityProvider</code></td>
+</tr>
+<tr>
+<td><strong>Logging</strong></td>
+<td><code>&quot;logging&quot;</code></td>
+<td><code>StructuredLogger</code></td>
+</tr>
+<tr>
+<td><strong>Retry</strong></td>
+<td><code>&quot;retry&quot;</code></td>
+<td><code>RetryProvider</code></td>
+</tr>
+<tr>
+<td><strong>Idempotency</strong></td>
+<td><code>&quot;idempotency&quot;</code></td>
+<td><code>IdempotencyProvider</code></td>
+</tr>
+<tr>
+<td><strong>Feature Flags</strong></td>
+<td><code>&quot;feature.flags&quot;</code></td>
+<td><code>FeatureFlagProvider</code></td>
+</tr>
+<tr>
+<td><strong>Serialization</strong></td>
+<td><code>&quot;serialization&quot;</code></td>
+<td><code>SerializationProvider</code></td>
+</tr>
+<tr>
+<td><strong>Encryption</strong></td>
+<td><code>&quot;encryption&quot;</code></td>
+<td><code>EncryptionProvider</code></td>
+</tr>
+<tr>
+<td><strong>Distributed Lock</strong></td>
+<td><code>&quot;distributed.lock&quot;</code></td>
+<td><code>DistributedLockProvider</code></td>
+</tr>
+<tr>
+<td><strong>Data Redaction</strong></td>
+<td><code>&quot;data.redaction&quot;</code></td>
+<td><code>DataRedactionProvider</code></td>
+</tr>
+<tr>
+<td><strong>Event Store</strong></td>
+<td><code>&quot;event.store&quot;</code></td>
+<td><code>EventStore</code></td>
+</tr>
+<tr>
+<td><strong>Input Validation</strong></td>
+<td><code>&quot;input.validate&quot;</code></td>
+<td><code>InputValidator</code></td>
+</tr>
+<tr>
+<td><strong>Workflow Engine</strong></td>
+<td><code>&quot;workflow.engine&quot;</code></td>
+<td><code>WorkflowEngine</code></td>
+</tr>
+<tr>
+<td><strong>Publish Policy</strong></td>
+<td><code>&quot;publish.policy&quot;</code></td>
+<td><code>PublishPolicyProvider</code></td>
+</tr>
+</tbody></table>
+<h3>UI &amp; API / Media Admin</h3>
+<table>
+<thead>
+<tr>
+<th>Module Type</th>
+<th>Capability</th>
+<th>What It Does</th>
+<th>Contract Repo</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>UI Module</strong></td>
+<td><code>&quot;ui&quot;</code></td>
+<td>Register HTTP handlers for a user interface</td>
+<td>(custom)</td>
+</tr>
+<tr>
+<td><strong>API Module</strong></td>
+<td><code>&quot;api&quot;</code></td>
+<td>Register HTTP handlers for a REST API</td>
+<td>(custom)</td>
+</tr>
+<tr>
+<td><strong>Media Library</strong></td>
+<td><code>&quot;media.library&quot;</code></td>
+<td>Provides media browsing, search, metadata editing, and artwork management to the admin UI via a standard gRPC service</td>
+<td><code>contracts-media-admin</code></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Contracts.html">Contracts Reference</a> — every interface in detail</li>
+<li><a href="Writing-Modules.html">Writing Modules</a> — build your own sidecar module</li>
+<li><a href="Event-System.html">Event System</a> — how modules communicate</li>
+<li><a href="Architecture.html">Architecture</a> — bootstrap, gRPC services, cluster</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Storage · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html" class="active">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Storage Abstraction</h1>
+<p><strong>Storage in MuxCore is not about files and folders.</strong> It&#39;s about capabilities — what a storage backend can do — and the system adapts around them. Modules never touch filesystem paths. Everything goes through object IDs.</p>
+<hr>
+<h2>The Problem with Filesystem Paths</h2>
+<p>Every existing media stack assumes local filesystem access:</p>
+<pre><code>Sonarr downloads to:    /downloads/movies/
+Radarr expects media at: /media/movies/
+Plex watches:           /media/
+Transcoder reads from:  /transcodes/temp/
+</code></pre>
+<p>This causes problems when:</p>
+<ul>
+<li>You add a second machine — paths don&#39;t exist there</li>
+<li>You mount network storage (NFS/SMB) — atomic moves break</li>
+<li>You want to use cloud storage — the concept of a &quot;path&quot; doesn&#39;t apply</li>
+<li>Hardlinks fail across filesystem boundaries — double disk usage</li>
+</ul>
+<p>MuxCore solves this by abstracting storage behind <strong>object IDs</strong>. A module asks for &quot;object <code>abc123</code>&quot; and the storage orchestrator figures out where it lives and how to get it.</p>
+<hr>
+<h2>The Golden Rule</h2>
+<blockquote>
+<p><strong>Modules must never touch filesystem paths.</strong> Use <code>storagev1.NewStorageServiceClient(conn).Get(ctx, &amp;storagev1.GetRequest{Key: &quot;object-id&quot;})</code>, never <code>os.Open(&quot;/media/movie.mkv&quot;)</code>.</p>
+</blockquote>
+<p>If a module touches a path, the entire abstraction collapses.</p>
+<hr>
+<h2>Three Layers</h2>
+<h3>Layer 1: Blob Storage</h3>
+<p>Raw object storage — put bytes in, get bytes out:</p>
+<pre><code class="language-go">type StorageProvider interface {
+    Put(ctx, key string, data io.Reader, size int64) error
+    Get(ctx, key string) (io.ReadCloser, error)
+    Delete(ctx, key string) error
+    Move(ctx, src, dst string) error
+    Exists(ctx, key string) (bool, error)
+    Stat(ctx, key string) (ObjectInfo, error)
+    List(ctx, prefix string) ([]ObjectInfo, error)
+}
+</code></pre>
+<p>Every storage backend implements this. Today core ships a <strong>local filesystem</strong> provider; additional backends (S3, Ceph, etc.) arrive as modules when available.</p>
+<h3>Layer 2: The Orchestrator</h3>
+<p>The <code>StorageOrchestrator</code> sits between modules and storage providers. It:</p>
+<ul>
+<li>Routes objects to the right provider based on policies</li>
+<li>Negotiates capabilities at runtime</li>
+<li>Provides read-through caching when available</li>
+<li>Supports byte-range streaming</li>
+<li>Streams directly to providers when size is known (no intermediate buffer)</li>
+<li>Bounds concurrent audit goroutines to 100 to prevent burst overload</li>
+</ul>
+<pre><code class="language-go">type StorageOrchestrator interface {
+    Get(ctx, key string) (io.ReadCloser, error)
+    Put(ctx, key string, data io.Reader, size int64) error
+    Delete(ctx, key string) error
+    Move(ctx, src, dst string) error
+    Stream(ctx, key string, offset, length int64) (io.ReadCloser, error)
+    CapabilityCheck(ctx, key string) ([]string, error)
+    Promote(ctx, key string) error
+    Relegate(ctx, key string) error
+    // ...
+}
+</code></pre>
+<p>List operations accept an empty prefix to list all objects. <code>CapabilityCheck</code> accepts an empty key to check capabilities of the default provider.</p>
+<h3>Layer 3: Media Library</h3>
+<p>The media library maps logical entities to physical storage:</p>
+<pre><code>movie://interstellar          → object &quot;media/movies/interstellar/2160p.mkv&quot;
+show://breaking-bad/s01e01    → object &quot;media/tv/breaking-bad/s01/e01.mkv&quot;
+music://daft-punk/ram         → object &quot;media/music/daft-punk/ram/&quot;
+</code></pre>
+<p>The metadata database knows which objects belong to which media items. Modules work with logical identifiers, not paths.</p>
+<hr>
+<h2>Capability Interfaces</h2>
+<p>Not all storage supports the same operations. MuxCore uses small capability interfaces — a storage provider can implement any subset:</p>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>What It Means</th>
+<th>Who Supports It</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Streamable</code></td>
+<td>Can stream byte ranges</td>
+<td>S3, local FS, most backends</td>
+</tr>
+<tr>
+<td><code>Seekable</code></td>
+<td>Can seek to arbitrary positions</td>
+<td>Local FS, SMB/NFS</td>
+</tr>
+<tr>
+<td><code>Watchable</code></td>
+<td>Can notify on file changes</td>
+<td>Local FS only</td>
+</tr>
+<tr>
+<td><code>AtomicMovable</code></td>
+<td>Atomic moves (instant, no copy)</td>
+<td>Local FS, some NAS</td>
+</tr>
+<tr>
+<td><code>Hardlinkable</code></td>
+<td>Can create hardlinks</td>
+<td>Local FS, ZFS datasets</td>
+</tr>
+<tr>
+<td><code>TieredProvider</code></td>
+<td>Hot/warm/cold storage tiers</td>
+<td>Multi-backend setups</td>
+</tr>
+</tbody></table>
+<h3>Capability Matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Local FS</th>
+<th>SMB/NFS</th>
+<th>S3/MinIO</th>
+<th>Cloud (B2/R2)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Atomic Move</td>
+<td>✓</td>
+<td>~Maybe</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>Random Seek</td>
+<td>✓</td>
+<td>✓</td>
+<td>Partial</td>
+<td>Partial</td>
+</tr>
+<tr>
+<td>Streaming</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Hardlinks</td>
+<td>✓</td>
+<td>✗</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+<tr>
+<td>File Watching</td>
+<td>✓</td>
+<td>Weak</td>
+<td>✗</td>
+<td>✗</td>
+</tr>
+</tbody></table>
+<p>Modules check capabilities at runtime and adapt:</p>
+<pre><code class="language-go">caps, _ := storagev1.NewStorageServiceClient(conn).Capabilities(ctx, &amp;storagev1.CapabilitiesRequest{}); // check returned caps for  objectKey)
+for _, cap := range caps {
+    switch cap {
+    case &quot;hardlinkable&quot;:
+        // Use hardlinks — fast and space-efficient
+    case &quot;atomicmovable&quot;:
+        // Use atomic moves — instant and safe
+    default:
+        // Fall back to copy + delete
+    }
+}
+</code></pre>
+<hr>
+<h2>Storage Providers</h2>
+<h3>Shipped</h3>
+<ul>
+<li><strong>Local filesystem</strong> — direct disk access via core&#39;s storage orchestrator</li>
+</ul>
+<h3>Planned (module-backed)</h3>
+<ul>
+<li><strong>SMB / NFS / WebDAV</strong> — network mounts</li>
+<li><strong>S3</strong> — AWS S3, MinIO, Cloudflare R2, Backblaze B2, Wasabi</li>
+<li><strong>GCS / Azure Blob</strong></li>
+<li><strong>Ceph / SeaweedFS / Longhorn</strong></li>
+</ul>
+<hr>
+<h2>Storage Overlays (Planned)</h2>
+<p>Middleware backends that wrap other backends, adding capabilities transparently:</p>
+<pre><code>Encryption Layer     ← encrypts before writing
+    ↓
+Compression Layer    ← compresses data
+    ↓
+Cache Layer          ← caches hot objects in RAM/NVMe
+    ↓
+Replication Layer    ← writes to multiple backends
+    ↓
+S3 Provider          ← actual storage
+</code></pre>
+<p>Planned overlays:</p>
+<ul>
+<li><strong>Encryption</strong> — encrypt data at rest</li>
+<li><strong>Compression</strong> — transparent compression</li>
+<li><strong>Deduplication</strong> — block-level dedup</li>
+<li><strong>Replication</strong> — write to multiple destinations</li>
+<li><strong>Snapshot</strong> — point-in-time recovery</li>
+<li><strong>Cache</strong> — SSD/RAM read-through cache</li>
+</ul>
+<hr>
+<h2>Storage Policies</h2>
+<p>Programmatic routing is live: the orchestrator evaluates ordered <code>RoutingPolicy</code> rules (first match wins) via <code>AddPolicy</code> / <code>SetPolicies</code>. Put placement matches on object <strong>prefix</strong> and/or <strong>label</strong> metadata; <strong>age_days</strong> rules apply only to background migration (relegate), not Put. Core loads <code>storage.policies</code> from config at startup (<code>PoliciesFromConfig</code>).</p>
+<pre><code class="language-go">orch.AddPolicy(storage.RoutingPolicy{
+    Name:     &quot;hot&quot;,
+    Prefix:   &quot;hot/&quot;,
+    Provider: &quot;fast-nvme&quot;,
+})
+orch.AddPolicy(storage.RoutingPolicy{
+    Name:     &quot;archive&quot;,
+    AgeDays:  365,
+    Tier:     contracts.StorageTierCold,
+})
+</code></pre>
+<p>Config shape (<code>storage.policies</code> in core config JSON):</p>
+<pre><code class="language-json">{
+  &quot;storage&quot;: {
+    &quot;policies&quot;: [
+      {
+        &quot;name&quot;: &quot;temp&quot;,
+        &quot;match&quot;: { &quot;label&quot;: &quot;transcoding-temp&quot; },
+        &quot;provider&quot;: &quot;local-ssd&quot;
+      },
+      {
+        &quot;name&quot;: &quot;hot-prefix&quot;,
+        &quot;match&quot;: { &quot;prefix&quot;: &quot;hot/&quot; },
+        &quot;provider&quot;: &quot;fast-nvme&quot;
+      },
+      {
+        &quot;name&quot;: &quot;cold-age&quot;,
+        &quot;match&quot;: { &quot;age_days&quot;: 365 },
+        &quot;tier&quot;: &quot;cold&quot;
+      }
+    ]
+  }
+}
+</code></pre>
+<p><strong>Still in progress:</strong> declarative <code>media_type</code> / quality-based YAML rules (the aspirational media-aware policy language). Until that lands, route by prefix/label/age as above.</p>
+<hr>
+<h2>Storage Scenarios (Target Architecture)</h2>
+<h3>Hot/Cold Tiering</h3>
+<pre><code>Recently watched → NVMe (hot)
+This year&#39;s media → HDD array (warm)
+Archive → S3 Glacier (cold)
+</code></pre>
+<p>Media automatically moves between tiers based on access patterns (planned).</p>
+<h3>Distributed Transcoding</h3>
+<pre><code>1. Remote S3 media → worker pulls segment
+2. Worker caches to local SSD
+3. GPU transcodes the segment
+4. Result pushed to target storage
+</code></pre>
+<p>Workers don&#39;t need access to the same filesystem — they pull, cache, process, and push.</p>
+<h3>Multi-Region Replication</h3>
+<pre><code>Primary: local ZFS pool
+Replica: remote S3 bucket
+Backup: cold archive (monthly)
+</code></pre>
+<hr>
+<h2>Important Distinction</h2>
+<p><strong>Media presence ≠ media availability.</strong></p>
+<p>A movie can exist logically (in your library, with metadata) but its files may be:</p>
+<ul>
+<li>Still downloading</li>
+<li>Archived (needs retrieval)</li>
+<li>On an offline node</li>
+<li>Partially replicated</li>
+</ul>
+<p>The library tracks what exists logically. The storage layer handles physical availability. These are separate concerns.</p>
+<hr>
+<h2>Terminology</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Asset</strong></td>
+<td>A raw stored file or blob</td>
+</tr>
+<tr>
+<td><strong>Media Object</strong></td>
+<td>A logical media entity (movie, episode, song)</td>
+</tr>
+<tr>
+<td><strong>Storage Provider</strong></td>
+<td>A physical storage backend</td>
+</tr>
+<tr>
+<td><strong>Storage Policy</strong></td>
+<td>Rules for where objects get stored</td>
+</tr>
+<tr>
+<td><strong>Capability</strong></td>
+<td>What a storage backend can do (stream, seek, hardlink)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Event-System.html">Event System</a> — how modules communicate</li>
+<li><a href="Workflow-Engine.html">Workflow Engine</a> — multi-step automation</li>
+<li><a href="Contracts.html">Contracts Reference</a> — storage interfaces in detail</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>
