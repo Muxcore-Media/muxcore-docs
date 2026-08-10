@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Core Concepts · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html" class="active">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Core Concepts</h1>
+<p><strong>This page explains how MuxCore works — from the big ideas down to the details.</strong> If you&#39;re coming from Sonarr, Radarr, or Plex, start here. You don&#39;t need to be a programmer to understand this page. When we get into code examples, we&#39;ll mark them clearly.</p>
+<hr>
+<h2>The Problem MuxCore Solves</h2>
+<h3>How Media Automation Works Today</h3>
+<p>Right now, most people run a stack of separate programs:</p>
+<pre><code>Sonarr (TV)  +  Radarr (Movies)  +  Lidarr (Music)  +  Bazarr (Subtitles)
+     ↓               ↓                   ↓                  ↓
+Prowlarr (search) → qBittorrent (download) → Plex/Jellyfin (playback)
+</code></pre>
+<p>Each program has its own:</p>
+<ul>
+<li><strong>Database</strong> — the same movie exists in three places</li>
+<li><strong>Settings</strong> — configure download paths six times</li>
+<li><strong>Scheduler</strong> — six separate task timers running</li>
+<li><strong>Update cycle</strong> — six things to keep current</li>
+</ul>
+<p>This works fine for a single machine with a simple setup. It breaks down when you want to:</p>
+<ul>
+<li>Run transcoding on a separate GPU machine</li>
+<li>Store some media locally and some in cloud storage</li>
+<li>Have two downloaders active at the same time</li>
+<li>Add a new media type (books, audiobooks, comics)</li>
+<li>Survive a machine going down without manual intervention</li>
+</ul>
+<h3>How MuxCore Does It</h3>
+<p>MuxCore replaces the separate programs with a <strong>single platform</strong> where everything is a pluggable module:</p>
+<pre><code>                         MuxCore (the platform)
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+   Downloaders           Media Managers         Playback
+   (qBit, SABnzbd)    (Movies, TV, Music)   (Jellyfin, Plex)
+        │                     │                     │
+        └─────────────────────┼─────────────────────┘
+                              │
+                    Everything else:
+              Indexers, Transcoders, Notifications,
+              Metadata, Subtitles, Storage backends...
+</code></pre>
+<p>Instead of six programs that barely know about each other, you have one platform where every module can see what every other module is doing. A download finishes → the media manager imports it → the transcoder optimizes it → notification goes out. All without hardcoded paths or fragile integrations.</p>
+<blockquote>
+<p><strong>⚠️ Beta software notice:</strong> MuxCore is pre-1.0 beta software under active development. Core ships a built-in WorkerPool (<code>core.workerpool</code>). When a node dies, the <strong>leader</strong> can resurrect orphaned modules from the spool tag cache (<code>ResurrectOrphan</code>). <strong>Task redistribution</strong> returns departed-node worker tasks to Pending for redispatch (up to <code>MaxRetries</code>); exhausted retries are marked failed.</p>
+</blockquote>
+<hr>
+<h2>The Fabric Metaphor</h2>
+<p>MuxCore uses a consistent metaphor to explain how it works. Once you understand this, everything else clicks into place.</p>
+<p><strong>MuxCore is a fabric — a woven system of independent parts working together.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it means</th>
+<th>Real-world analogy</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>The Loom</strong></td>
+<td>Core platform — the fixed frame</td>
+<td>The frame of a weaving loom that never changes shape</td>
+</tr>
+<tr>
+<td><strong>Threads</strong></td>
+<td>Modules — every feature is a thread</td>
+<td>Individual threads woven into the fabric</td>
+</tr>
+<tr>
+<td><strong>Patterns</strong></td>
+<td>Contracts — the interfaces threads agree to</td>
+<td>The weaving pattern that determines how threads cross</td>
+</tr>
+<tr>
+<td><strong>Signals</strong></td>
+<td>Events — how threads communicate</td>
+<td>A pulse that travels through the fabric when something changes</td>
+</tr>
+<tr>
+<td><strong>Tapestries</strong></td>
+<td>Workflows — multi-step processes</td>
+<td>A finished woven piece made from many threads</td>
+</tr>
+</tbody></table>
+<h3>The Loom Never Changes</h3>
+<p>This is the most important rule in MuxCore:</p>
+<blockquote>
+<p><strong>If adding a new media type requires changing the core platform, the architecture is wrong.</strong></p>
+</blockquote>
+<p>Core — the loom — knows nothing about movies, TV shows, music, books, or any specific media type. It provides the base infrastructure (event bus, module registry, HTTP server, gRPC mesh, storage orchestrator, audit pipeline) and nothing more. Everything specific to a media type lives in modules and their contracts.</p>
+<p>This means:</p>
+<ul>
+<li>Adding support for VR180 video? Write a module, core doesn&#39;t change.</li>
+<li>Adding audiobook support? Write a module, core doesn&#39;t change.</li>
+<li>Adding a new streaming service? Write a module, core doesn&#39;t change.</li>
+</ul>
+<hr>
+<h2>Five Design Patterns</h2>
+<p>These five patterns are how MuxCore stays flexible without becoming complicated. They&#39;re the engineering behind &quot;the loom never changes.&quot;</p>
+<h3>Pattern 1: <code>Meta</code> — The Universal Carry-All</h3>
+<p>Every task and filter in MuxCore carries a <code>Meta</code> field — a key-value bag that modules use for their own data. Core never looks inside it.</p>
+<p><strong>Why this matters:</strong> A download task can hold a torrent magnet link, an Apple Music track ID, a Spotify URI, or a YouTube video ID — all in the same <code>Meta</code> field. Core routes the task. The downloader module reads what it needs from <code>Meta</code>. Core never learns what Apple Music is.</p>
+<pre><code class="language-go">// Core never interprets these fields — the module does
+req := &amp;downloaderv1.AddTorrentRequest{
+    TorrentUrl: magnetOrURL,
+    Category:   &quot;music&quot;,
+    SavePath:   savePath,
+}
+// Extra provider-specific keys travel in Meta on related fabric types
+// (worker tasks, filters) — not as a shared DownloadTask Go type.
+</code></pre>
+<h3>Pattern 2: Discovery, Not Pre-Wiring</h3>
+<p>Core provides base infrastructure to every module (event bus, registry, storage, gRPC mesh). Everything else — secrets, databases, caches, metrics, tracing — modules discover at runtime by asking &quot;who can do X?&quot;</p>
+<pre><code>Module asks: &quot;Who provides secrets?&quot;
+Registry answers: &quot;vault-secrets can do that&quot;
+Module gets: a SecretsProvider it can use
+</code></pre>
+<p>If someone writes a new type of service tomorrow, modules discover it the same way. Core&#39;s service list never needs to grow.</p>
+<h3>Pattern 3: Role Strings, Not Enums</h3>
+<p>In most systems, the platform defines every possible module type as a fixed list. In MuxCore, modules define their own roles as simple strings:</p>
+<pre><code class="language-go">// A module can declare any roles it wants
+Roles: []string{&quot;downloader&quot;, &quot;streaming_source&quot;, &quot;cache_writer&quot;}
+</code></pre>
+<p>Core has no catalog of roles. A module can declare <code>&quot;vr180_processor&quot;</code> and other modules find it with <code>FindByRole(&quot;vr180_processor&quot;)</code>. The loom doesn&#39;t need to know what a VR180 processor is.</p>
+<h3>Pattern 4: Domain Contracts in Separate Repos</h3>
+<p>Everything specific to a media type lives in a <strong>contract repository</strong> — an independent, versioned package that defines interfaces:</p>
+<pre><code>github.com/Muxcore-Media/contracts-downloader    → DownloaderService (gRPC)
+github.com/Muxcore-Media/contracts-indexer       → Indexer / search types
+github.com/Muxcore-Media/contracts-media-admin   → MediaAdminService (admin UI seam)
+github.com/Muxcore-Media/contracts-reconciler    → Structural contract reconciliation
+</code></pre>
+<p>Core also defines fabric contracts (including <code>WorkflowEngine</code>) in <code>pkg/contracts/</code>. Core imports <strong>none</strong> of the domain <code>contracts-*</code> repos. Modules import the ones they need. When a domain needs a new interface, that contract repo is updated — core stays untouched.</p>
+<h3>Pattern 5: Contract Declarations</h3>
+<p>Modules openly declare which contracts they implement:</p>
+<pre><code class="language-go">func (m *Module) Info() ModuleInfo {
+    return ModuleInfo{
+        ID:   &quot;apple-music&quot;,
+        Name: &quot;Apple Music Provider&quot;,
+        Roles: []string{&quot;playback&quot;, &quot;media_manager&quot;},
+        Contracts: []ContractDeclaration{
+            {Repo: &quot;contracts-downloader&quot;, Version: &quot;v1.0.0&quot;, Interface: &quot;DownloaderService&quot;},
+            {Repo: &quot;contracts-media-admin&quot;, Version: &quot;v1.0.0&quot;, Interface: &quot;MediaAdminService&quot;},
+        },
+    }
+}
+</code></pre>
+<p>The marketplace checks these before showing install buttons. Consumer modules check them before connecting. Core stores and returns them — nothing more.</p>
+<hr>
+<h2>The Media Object Pattern</h2>
+<p>One of the most powerful design decisions in MuxCore: <strong>a single media item can own multiple files.</strong></p>
+<p>In Sonarr, if you want 1080p and 4K versions of a movie, you need two separate instances. In MuxCore, one movie object owns files at every quality:</p>
+<pre><code>MediaObject &quot;The Terminator&quot;
+├── Assets:
+│   ├── 2160p remux (72 GB, MKV)
+│   ├── 1080p web   (8 GB, AV1)
+│   ├── 720p web    (3 GB, H.264)
+│   └── 360p web    (1 GB, H.264)
+</code></pre>
+<p>The playback module asks &quot;give me the best file this device can play,&quot; and the media library returns the matching asset. The loom just stores blobs and routes events — it never counts files or checks codecs.</p>
+<h3>How It Works in Practice</h3>
+<ol>
+<li>Downloader fetches the 2160p remux → adds an asset to the media object</li>
+<li>Transcoder creates 1080p, 720p, and 360p versions → adds three more assets</li>
+<li>Client requests playback → media library picks the right asset for that device</li>
+<li>Core never knows any of this happened — it just stored blobs and routed events</li>
+</ol>
+<hr>
+<h2>How Modules Communicate</h2>
+<p>Modules in MuxCore never call each other directly. All communication goes through two channels:</p>
+<h3>Signals (Events)</h3>
+<p>When something changes — a download finishes, a transcode completes, a new node joins the cluster — the module publishes a <strong>signal</strong> on the event bus. Any module that cares about that signal subscribes to it:</p>
+<pre><code>Downloader publishes: &quot;download.completed&quot;
+    ↓
+Media Manager receives it → imports the file
+Transcoder receives it → starts optimizing
+Notification module receives it → sends a Discord message
+</code></pre>
+<p>The downloader doesn&#39;t know (or care) who&#39;s listening. It just sends the signal.</p>
+<h3>Direct Calls (gRPC)</h3>
+<p>For request/response patterns — &quot;what&#39;s the status of task X?&quot; or &quot;give me the metadata for movie Y&quot; — modules make direct calls through the gRPC mesh. The mesh routes calls locally when the target module is on the same machine, or over the network when it&#39;s on another node.</p>
+<p>Module-to-module calls are protected by policy — modules declare who they are, and the mesh enforces access rules.</p>
+<hr>
+<h2>Cross-Node Module Tracking</h2>
+<blockquote>
+<p><strong>⚠️ Beta status:</strong> Heartbeat-based module tracking is implemented. On node loss, the <strong>leader</strong> may resurrect orphaned tag modules on a surviving node. Modules do not self-reconnect by querying <code>Members()</code>. Departed-node worker tasks are released for redispatch (retry-capped).</p>
+</blockquote>
+<p>When MuxCore runs as a cluster (multiple core instances across machines), every node tracks which modules are running where. This is what makes the mesh routing work.</p>
+<h3>How It Works</h3>
+<ol>
+<li><p><strong>Modules register locally.</strong> A module connects to its local core instance via gRPC and calls <code>Register()</code>. The core adds it to its local registry.</p>
+</li>
+<li><p><strong>Heartbeats advertise module lists.</strong> Every 10 seconds, each core sends a heartbeat to every other core in the cluster. The heartbeat carries the node&#39;s current module list — every module ID registered on that node.</p>
+</li>
+<li><p><strong>Peers sync module lists.</strong> When core-2 receives a heartbeat from core-1, it updates its copy of core-1&#39;s <code>NodeInfo.modules</code>. Core-2 now knows that <code>media-transcoder</code> (FFmpeg backend) is running on core-1.</p>
+</li>
+<li><p><strong>Mesh routing uses the module map.</strong> When a module on core-3 calls <code>media-transcoder</code>, the mesh checks which node hosts it. If core-1 has it, the call gets routed through the core-to-core gRPC connection to core-1, then delivered locally.</p>
+</li>
+</ol>
+<h3>What Happens When a Node Dies</h3>
+<ol>
+<li>Core-1 stops sending heartbeats (process killed, machine down, network partition).</li>
+<li>After 30 seconds without a heartbeat, core-2 and core-3 independently evict core-1 from their member lists.</li>
+<li>Core-1&#39;s module list is removed alongside its node entry. The mesh stops routing calls to it.</li>
+<li>A <code>TYPE_NODE_LEFT</code> cluster event fires, notifying any watchers.</li>
+</ol>
+<h3>Module Failover (Leader Resurrection)</h3>
+<p>When a node leaves the cluster:</p>
+<ol>
+<li>Surviving nodes evict it after the heartbeat timeout; a <code>TYPE_NODE_LEFT</code> event fires.</li>
+<li>The <strong>leader</strong> looks up orphaned modules that were deployed from a spool tag and still have a cached binary.</li>
+<li>The leader calls <code>ResurrectOrphan</code> to spawn those modules on the surviving node.</li>
+<li>The surviving node&#39;s next heartbeat advertises the resurrected module IDs.</li>
+<li>Mesh callers keep using the same module ID — they do not need to know a resurrection occurred.</li>
+</ol>
+<p>Limits: only tag-deployed modules with a usable binary in the tag cache are resurrected. In-flight worker tasks on the departed node are released back to Pending for redispatch (failed only after <code>MaxRetries</code> is exceeded).</p>
+<h3>Cluster Events</h3>
+<p>Any module can subscribe to cluster membership changes via <code>DiscoveryService.Watch()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TYPE_NODE_JOINED</code></td>
+<td>A new core instance joins the cluster</td>
+</tr>
+<tr>
+<td><code>TYPE_NODE_LEFT</code></td>
+<td>A core instance is evicted (dead) or gracefully leaves</td>
+</tr>
+<tr>
+<td><code>TYPE_NODE_DEGRADED</code></td>
+<td>A node reports reduced capability</td>
+</tr>
+<tr>
+<td><code>TYPE_LEADER_CHANGED</code></td>
+<td>Cluster leader election produces a new leader</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>The Fabric at a Glance</h2>
+<pre><code>                     ┌───────────────────────────┐
+                     │      gRPC Services         │
+                     │  ModuleReg │ Discovery     │
+                     │  Storage │ Events │ Mesh   │
+                     │  Spool │ Lifecycle │ Audit │
+                     └────────────┬──────────────┘
+                                  │
+          ┌───────────────────────┼───────────────────────┐
+          │                       │                       │
+   ┌──────▼──────┐       ┌───────▼───────┐       ┌───────▼──────┐
+   │  Event Bus  │       │   Registry    │       │   Storage    │
+   │ (signals)   │       │(module dir)   │       │  Orchestrator│
+   └──────┬──────┘       └───────┬───────┘       └───────┬──────┘
+          │                      │                       │
+          └──────────────────────┼───────────────────────┘
+                                 │
+                     ┌───────────▼───────────────┐
+                     │   Sidecar Module Manager   │
+                     │  Spawn → Verify → Monitor  │
+                     │                            │
+                     │  ┌──────────────────────┐  │
+                     │  │  Modules (threads)   │  │
+                     │  │  Downloaders         │  │
+                     │  │  Media Managers      │  │
+                     │  │  Playback Providers  │  │
+                     │  │  Transcoders         │  │
+                     │  │  Storage Backends    │  │
+                     │  │  Notification Senders│  │
+                     │  │  ... and more        │  │
+                     │  └──────────────────────┘  │
+                     └────────────────────────────┘
+</code></pre>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><strong>Just want to try it?</strong> → <a href="Getting-Started.html">Getting Started</a></li>
+<li><strong>Want to understand modules?</strong> → <a href="Module-System.html">Module System</a></li>
+<li><strong>Want to build a module?</strong> → <a href="Writing-Modules.html">Writing Modules</a></li>
+<li><strong>Want to see every interface?</strong> → <a href="Contracts.html">Contracts Reference</a></li>
+<li><strong>Want to understand the internals?</strong> → <a href="Architecture.html">Architecture</a></li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

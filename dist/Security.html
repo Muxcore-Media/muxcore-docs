@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html" class="active">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Security Model</h1>
+<p><strong>Security is woven into every layer of MuxCore.</strong> Most self-hosted media software treats security as an afterthought — local-only access, no audit trail, hardcoded API keys. MuxCore builds authentication, authorization, encryption, and audit logging into the platform from day one.</p>
+<hr>
+<h2>How Security Works (Plain Language)</h2>
+<p>Think of MuxCore security like a building with multiple layers:</p>
+<ol>
+<li><strong>Front door (Authentication)</strong> — Who are you? Prove it with a password, API token, or SSO.</li>
+<li><strong>Room keys (Authorization)</strong> — What are you allowed to do? Admins can do anything. Viewers can only browse.</li>
+<li><strong>Security cameras (Audit Logging)</strong> — Everything is recorded: who did what, when, from where.</li>
+<li><strong>Locks on internal doors (Call Policy)</strong> — Even modules need permission to talk to each other.</li>
+<li><strong>Encrypted hallways (TLS)</strong> — Data in transit is always encrypted between machines.</li>
+</ol>
+<hr>
+<h2>Authentication</h2>
+<p>Authentication is <strong>module-driven</strong> — the core doesn&#39;t authenticate users directly. You install an auth module that connects to your existing identity system:</p>
+<table>
+<thead>
+<tr>
+<th>Auth Module</th>
+<th>How It Works</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Local Accounts</strong></td>
+<td>Username + password + optional 2FA, stored locally</td>
+</tr>
+<tr>
+<td><strong>API Tokens</strong></td>
+<td>Scoped, revocable tokens for programmatic access</td>
+</tr>
+<tr>
+<td><strong>OAuth/OIDC</strong></td>
+<td>Authentik, Authelia, Keycloak, Google, GitHub</td>
+</tr>
+<tr>
+<td><strong>LDAP / Active Directory</strong></td>
+<td>Enterprise directory integration</td>
+</tr>
+<tr>
+<td><strong>Plex Auth</strong></td>
+<td>Use your existing Plex account</td>
+</tr>
+</tbody></table>
+<p>Multiple auth modules can be active simultaneously. Your family uses Plex auth. Your scripts use API tokens. Your admin uses OIDC.</p>
+<h3>API Tokens</h3>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;readonly-monitor&quot;,
+  &quot;scopes&quot;: [&quot;events:read&quot;, &quot;status:read&quot;],
+  &quot;expires&quot;: &quot;2027-01-01T00:00:00Z&quot;
+}
+</code></pre>
+<p>Tokens are scoped and revocable. A monitoring dashboard gets read-only access. A download automation script gets download permissions only.</p>
+<hr>
+<h2>Authorization (RBAC)</h2>
+<p>Once authenticated, every action is checked against role-based permissions:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>What They Can Do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Admin</strong></td>
+<td>Full system access — manage users, modules, settings</td>
+</tr>
+<tr>
+<td><strong>Manager</strong></td>
+<td>Manage media — approve requests, edit metadata, delete</td>
+</tr>
+<tr>
+<td><strong>User</strong></td>
+<td>Request media, view library, manage their own requests</td>
+</tr>
+<tr>
+<td><strong>Viewer</strong></td>
+<td>View library only — no requests, no changes</td>
+</tr>
+<tr>
+<td><strong>Module</strong></td>
+<td>Scoped to the module&#39;s declared needs</td>
+</tr>
+</tbody></table>
+<h3>Policy Example</h3>
+<pre><code class="language-yaml">policies:
+  - role: user
+    can: [media.request, media.view]
+    on: [movies, tv, music]
+
+  - role: manager
+    can: [media.approve, media.delete, media.edit]
+    on: [movies, tv, music, books]
+
+  - role: admin
+    can: [&quot;*&quot;]
+    on: [&quot;*&quot;]
+</code></pre>
+<hr>
+<h2>Inter-Module Security</h2>
+<p>Modules need permission to talk to each other. A downloader shouldn&#39;t be able to call the user management module. The <strong>Call Policy</strong> system enforces this:</p>
+<pre><code class="language-go">// Module declares who it is
+ctx = contracts.WithCallerID(ctx, &quot;downloader-native-torrent&quot;)
+
+// Mesh client checks: &quot;can downloader-native-torrent call GetUsers on auth-local?&quot;
+result, err := meshv1.NewModuleMeshClient(conn).Call(ctx, &amp;meshv1.CallRequest{
+	TargetModule: &quot;auth-local&quot;,
+	Method:       &quot;GetUsers&quot;,
+	Payload:      payload,
+})
+// → Denied. Downloaders can&#39;t access user management.
+</code></pre>
+<p>When no call policy module is registered, inter-module calls are <strong>denied by default</strong> (secure-by-default). Deployments that want open mode must register an explicit permissive call policy provider.</p>
+<h3>gRPC method allowlist (<code>core@v0.5.0+</code>)</h3>
+<p>Core’s auth interceptor deny-by-defaults <strong>except</strong> a fixed public allowlist: module registration, Health <code>Check</code>, Discovery fan-out RPCs (<code>FindByCapability</code>, <code>FindByRole</code>, <code>ListAll</code>, <code>Members</code>, <code>Watch</code>, <code>Resolve</code>, …), and selected Event subscribe/publish helpers. That keeps laptop admin UIs and single-node membership working without a bearer. Everything else still needs Authorizer + IdentityProvider. The old <code>MUXCORE_GRPC_REQUIRE_*_AUTH</code> env toggles are gone — do not rely on them.</p>
+<hr>
+<h2>Audit Logging</h2>
+<p>Every significant action is recorded:</p>
+<pre><code>[2026-05-26 14:32:01] user:ender action:media.request resource:&quot;The Terminator&quot; trace:abc123
+[2026-05-26 14:32:05] system action:workflow.started resource:movie-request trace:abc123
+[2026-05-26 14:32:45] module:downloader-native-torrent action:download.started resource:torrent:xyz trace:abc123
+[2026-05-26 15:45:12] module:media-movies action:library.item.added resource:&quot;The Terminator&quot; trace:abc123
+</code></pre>
+<p>Audit entries include:</p>
+<ul>
+<li><strong>Who</strong> — user ID, system, or module ID</li>
+<li><strong>What</strong> — the action performed</li>
+<li><strong>On what</strong> — the resource affected</li>
+<li><strong>When</strong> — timestamp</li>
+<li><strong>Trace ID</strong> — links related actions across services</li>
+<li><strong>PrevEntryHash</strong> — SHA-256 of the previous entry, forming a tamper-evident chain</li>
+<li><strong>Signature</strong> — optional HMAC-SHA256 for cryptographic verification</li>
+</ul>
+<h3>Default Audit Logger</h3>
+<p>Core ships with a built-in JSONL file logger. Set <code>audit.path</code> in <code>muxcore.json</code> or <code>MUXCORE_AUDIT_PATH</code> environment variable to enable it:</p>
+<pre><code class="language-json">{
+  &quot;audit&quot;: {
+    &quot;path&quot;: &quot;/var/log/muxcore/audit.jsonl&quot;
+  }
+}
+</code></pre>
+<p>When no path is configured, the audit logger is a no-op — all Log/Query/Export calls return immediately with zero overhead. This means audit logging is <strong>safe to wire by default</strong> and costs nothing until you turn it on.</p>
+<p>For production, swap in a module-based audit logger (e.g., database-backed with search indexing) by implementing the <code>AuditLogger</code> contract.</p>
+<hr>
+<h2>Network Security</h2>
+<h3>API Server (HTTP)</h3>
+<p>TLS is configured with certificate and key files. Production expects certs; laptop demos set <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> so HTTP/gRPC run in plaintext (lab only — see <a href="Configuration-Reference.html">Configuration Reference</a>).</p>
+<pre><code class="language-json">{
+  &quot;server&quot;: {
+    &quot;cert_file&quot;: &quot;/etc/ssl/cert.pem&quot;,
+    &quot;key_file&quot;: &quot;/etc/ssl/key.pem&quot;
+  }
+}
+</code></pre>
+<p>Environment variables: <code>MUXCORE_SERVER_TLS_CERT</code> / <code>MUXCORE_SERVER_TLS_KEY</code> (aliases: <code>MUXCORE_TLS_CERT</code>, <code>MUXCORE_TLS_KEY</code>)</p>
+<h3>Trusted Proxies</h3>
+<p><code>X-Forwarded-For</code> is honored only when the TCP peer (<code>RemoteAddr</code>) is in a configured trusted proxy CIDR. By default only loopback (<code>127.0.0.0/8</code>, <code>::1/128</code>) is trusted. Untrusted peers: XFF is ignored and the client IP is <code>RemoteAddr</code>. <code>X-Real-IP</code> is not used.</p>
+<pre><code>Client → Internet → Reverse Proxy (10.0.0.1) → MuxCore
+                                                ↑ trusts XFF only from 10.0.0.0/8
+</code></pre>
+<p>Configure via <code>server.trusted_proxies</code> in config (CIDR strings), or call <code>srv.SetTrustedProxies([]string{&quot;10.0.0.0/8&quot;, &quot;172.16.0.0/12&quot;})</code>. Trusted CIDRs should be the immediate reverse-proxy hop(s).</p>
+<h3>WAL and Audit Integrity</h3>
+<p>The audit logger fsyncs each entry by default. The event WAL exposes <code>Flush</code> / <code>Sync</code> / <code>FlushSync</code> APIs and syncs on segment rotation; it does not fsync on every individual event write unless callers flush.</p>
+<h3>Health Endpoint Hardening</h3>
+<p>The <code>/health</code> endpoint no longer leaks module error messages verbatim. All errors are reported as the fixed string <code>&quot;error&quot;</code> to prevent information disclosure (file paths, internal hostnames, DB credentials in error messages).</p>
+<h3>Audit Log fsync</h3>
+<p>Every audit entry is fsynced to disk immediately after writing. Combined with the SHA-256 hash chain and optional HMAC-SHA256 signing, this provides crash-safe, tamper-evident audit logging.</p>
+<h3>gRPC SetHeader Error Handling</h3>
+<p>All gRPC metadata propagation errors (term headers on Join, Heartbeat, Members, Watch responses) are now logged at warn level. Previously they were silently discarded, which could cause stale cluster state in clients.</p>
+<h3>gRPC Mesh (Inter-Machine)</h3>
+<p>gRPC communication between nodes uses TLS:</p>
+<pre><code class="language-json">{
+  &quot;grpc&quot;: {
+    &quot;cert_file&quot;: &quot;/etc/ssl/grpc-cert.pem&quot;,
+    &quot;key_file&quot;: &quot;/etc/ssl/grpc-key.pem&quot;,
+    &quot;mtls_enabled&quot;: true,
+    &quot;ca_cert_file&quot;: &quot;/etc/ssl/ca.pem&quot;
+  }
+}
+</code></pre>
+<p><strong>Plaintext mode</strong> logs a warning — it works but is not recommended for production. <strong>Mutual TLS (mTLS)</strong> verifies both ends of the connection, preventing unauthorized nodes from joining the mesh.</p>
+<p>Environment variables: <code>MUXCORE_GRPC_TLS_CERT</code>, <code>MUXCORE_GRPC_TLS_KEY</code>, <code>MUXCORE_GRPC_MTLS_ENABLED</code>, <code>MUXCORE_GRPC_MTLS_CA</code></p>
+<h3>Cluster Join Token</h3>
+<p>Nodes must present a pre-shared token to join the cluster:</p>
+<pre><code class="language-json">{
+  &quot;grpc&quot;: {
+    &quot;join_token&quot;: &quot;my-secret-cluster-token&quot;
+  }
+}
+</code></pre>
+<p>Or: <code>MUXCORE_CLUSTER_JOIN_TOKEN=my-sec...ken</code></p>
+<hr>
+<h2>Data Protection</h2>
+<h3>Encryption at Rest</h3>
+<p>Storage overlay modules handle encryption transparently. Data is encrypted before writing to any storage backend:</p>
+<pre><code>Module writes data → Encryption overlay encrypts → Storage backend stores ciphertext
+Module reads data ← Encryption overlay decrypts ← Storage backend returns ciphertext
+</code></pre>
+<p>The <code>EncryptionProvider</code> contract supports envelope encryption with key rotation. The <code>encryption-aesgcm</code> module implements this with a versioned on-disk keyring: new Encrypt calls use the active key; Decrypt selects the key from the ciphertext prefix (legacy unversioned blobs still decrypt with key id <code>0</code>).</p>
+<pre><code class="language-go">ep.Encrypt(ctx, plaintext)   // produces self-describing ciphertext
+ep.Decrypt(ctx, ciphertext)  // reads key metadata, selects correct key
+ep.RotateKey(ctx)            // new key for future encryptions, old key still works for existing data
+</code></pre>
+<h3>Secrets Management</h3>
+<p>Prefer a secrets module over putting API keys in config or env. Core still accepts some env overlays (e.g. <code>MUXCORE_DATABASE_URL</code>) for bootstrap; production credentials should live in a <code>SecretsProvider</code> module:</p>
+<pre><code class="language-go">secrets.Get(ctx, &quot;jackett_api_key&quot;)    // not os.Getenv(&quot;JACKETT_API_KEY&quot;)
+</code></pre>
+<p>Supported module backends today include encrypted files (<code>secrets-file</code>). Vault and similar backends are planned.</p>
+<h3>Data Redaction</h3>
+<p>Sensitive data (emails, tokens, IP addresses) is automatically stripped from logs and audit trails:</p>
+<pre><code class="language-go">safe := redaction.Redact(ctx, data, []string{&quot;email&quot;, &quot;token&quot;, &quot;ip_address&quot;})
+// {&quot;user_id&quot;: &quot;abc123&quot;, &quot;email&quot;: &quot;***REDACTED***&quot;, &quot;action&quot;: &quot;login&quot;}
+</code></pre>
+<hr>
+<h2>Module Sandboxing (Planned)</h2>
+<p>External modules will run as separate processes with limited OS permissions:</p>
+<ul>
+<li><strong>Docker/container isolation</strong> — recommended deployment pattern</li>
+<li><strong>gVisor/Firecracker</strong> — optional microVM isolation for untrusted modules</li>
+<li><strong>Declared permissions</strong> — modules declare what they need; core enforces</li>
+</ul>
+<hr>
+<hr>
+<h2>Cryptographic Module Identity</h2>
+<p>When mTLS is enabled, every module connecting to the gRPC mesh presents a TLS client certificate whose Common Name (CN) is the module ID. Core verifies the CN matches the <code>module_id</code> in the <code>Register</code> RPC:</p>
+<pre><code>TLS handshake → extract CN from client cert → verify against RegisterRequest.ModuleId
+</code></pre>
+<p><strong>This replaces the trust-on-first-use <code>x-caller-id</code> header pattern.</strong> Peer address binding is used only as a dev-mode fallback when <code>MUXCORE_INSECURE_DISABLE_TLS=true</code>.</p>
+<h3>Certificate Issuance</h3>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>How It Works</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Core-spawned</strong></td>
+<td>Module manager issues cert automatically → passes via <code>--muxcore-tls-cert</code> / <code>--muxcore-tls-key</code></td>
+</tr>
+<tr>
+<td><strong>External</strong></td>
+<td>Module calls <code>BootstrapRegister</code> with a one-time token → receives signed cert + key + CA</td>
+</tr>
+</tbody></table>
+<p>See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> for the full architecture.</p>
+<h3>Benefits</h3>
+<ul>
+<li><strong>Cryptographic binding</strong> — module identity is tied to a TLS certificate, not a self-declared header</li>
+<li><strong>No shared secrets</strong> — each module gets its own keypair, not a shared token</li>
+<li><strong>Cluster-wide trust</strong> — the same CA is distributed to all cluster nodes, so modules can move between nodes</li>
+<li><strong>Revocation by expiration</strong> — module certificates expire after 365 days and must be renewed</li>
+</ul>
+<hr>
+<h2>Security Roadmap</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Features</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>MVP (Current)</strong></td>
+<td>Local accounts auth, API tokens, RBAC, TLS encryption, mTLS enforcement, internal CA, audit logging, call policy</td>
+</tr>
+<tr>
+<td><strong>Phase 2</strong></td>
+<td>OIDC/SSO, LDAP, module permission declarations</td>
+</tr>
+<tr>
+<td><strong>Phase 3</strong></td>
+<td>Sandbox policies, network segmentation, SIEM integration</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Deployment.html">Deployment</a> — secure deployment patterns</li>
+<li><a href="Contracts.html">Contracts Reference</a> — AuthProvider, Authorizer, Encryption interfaces</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

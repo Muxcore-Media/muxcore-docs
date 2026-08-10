@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contracts · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html" class="active">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Contracts Reference</h1>
+<p><strong>Every interface in MuxCore, documented.</strong> Contracts are the patterns modules agree to follow. This page catalogs every fabric contract. For domain contracts (media-specific interfaces for downloading, playback, etc.), see <a href="Module-System.html">Module System</a>.</p>
+<hr>
+<h2>How to Read This Page</h2>
+<p>Each contract lists:</p>
+<ul>
+<li><strong>What it does</strong> — in plain language</li>
+<li><strong>How modules get it</strong> — Fabric field, auto-detected, or runtime discovery</li>
+<li><strong>The interface</strong> — Go code for module developers</li>
+</ul>
+<blockquote>
+<p><strong>Not a developer?</strong> You don&#39;t need this page. It&#39;s a technical reference for people building modules. See <a href="Module-System.html">Module System</a> for a friendlier overview.</p>
+</blockquote>
+<hr>
+<h2>Core Services (Always Available)</h2>
+<p>These services are always available via gRPC on the mesh address. Sidecar modules access them through generated proto clients.</p>
+<h3>Registry — Module Discovery</h3>
+<p><strong>What it does:</strong> The phone book of the platform. Modules use it to find other modules.</p>
+<p><strong>How to get it:</strong> Via <code>DiscoveryService</code> gRPC</p>
+<pre><code class="language-go">type Registry interface {
+    FindByRole(role string) []ModuleEntry
+    FindByCapability(cap string) []ModuleEntry
+    SupportsCapability(moduleID, cap string) bool
+    Resolve(id string) (ModuleEntry, error)
+    ListAll() []ModuleEntry
+}
+</code></pre>
+<h3>EventBus — Publish and Subscribe</h3>
+<p><strong>What it does:</strong> The central nervous system. Modules publish events; other modules subscribe.</p>
+<p><strong>How to get it:</strong> Via <code>EventService</code> gRPC</p>
+<pre><code class="language-go">type EventBus interface {
+    Publish(ctx context.Context, event Event) error
+    Subscribe(ctx context.Context, eventType string, handler EventHandler) error
+    Unsubscribe(ctx context.Context, eventType string, handler EventHandler) error
+    // Request publishes an event and waits for a reply.
+    Request(ctx context.Context, event Event, timeout time.Duration) (Event, error)
+    // SubscribeModule registers a handler tagged with a module identifier
+    // for clean lifecycle management via UnsubscribeAll.
+    // Returns a cancel func that unsubscribes this handler.
+    SubscribeModule(ctx context.Context, moduleID, eventType string, handler EventHandler) (cancel func(), err error)
+    // UnsubscribeAll removes all subscriptions for a given module ID.
+    UnsubscribeAll(ctx context.Context, moduleID string) error
+}
+</code></pre>
+<h3>StorageOrchestrator — File Storage</h3>
+<p><strong>What it does:</strong> Store and retrieve files by ID. Modules never touch filesystem paths.</p>
+<p><strong>How to get it:</strong> Via <code>StorageService</code> gRPC</p>
+<pre><code class="language-go">type StorageOrchestrator interface {
+    Get(ctx context.Context, key string) (io.ReadCloser, error)
+    Put(ctx context.Context, key string, data io.Reader, size int64) error
+    Delete(ctx context.Context, key string) error
+    Move(ctx context.Context, src, dst string) error
+    Exists(ctx context.Context, key string) (bool, error)
+    Stat(ctx context.Context, key string) (ObjectInfo, error)
+    List(ctx context.Context, prefix string) ([]ObjectInfo, error)
+    Stream(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error)
+    CapabilityCheck(ctx context.Context, key string) ([]string, error)
+    Promote(ctx context.Context, key string) error
+    Relegate(ctx context.Context, key string) error
+}
+</code></pre>
+<h3>Cluster — Multi-Machine Membership</h3>
+<p><strong>What it does:</strong> Track which machines are in the cluster, who&#39;s the leader. Always started by core (including single-node deployments).</p>
+<p><strong>How to get it:</strong> Via <code>DiscoveryService</code> cluster RPCs</p>
+<pre><code class="language-go">type Cluster interface {
+    Start(ctx context.Context) error
+    Stop(ctx context.Context) error
+    Members() []NodeInfo
+    Leader() *NodeInfo
+    LocalNode() NodeInfo
+    Events() &lt;-chan ClusterEvent
+    Health(ctx context.Context) error
+    FindNodesByLabel(ctx context.Context, label, value string) []NodeInfo
+    FindNodesByModule(ctx context.Context, moduleID string) []NodeInfo
+}
+</code></pre>
+<h3>WorkerPool — Distributed Tasks</h3>
+<p><strong>What it does:</strong> Schedule work across workers. Submit a task, it lands on an available worker.</p>
+<p><strong>How to get it:</strong> Core registers a built-in <code>core.workerpool</code>. The optional <code>worker-pool-memory</code> module also advertises the capability but is <strong>deprecated</strong> / superseded by the built-in.</p>
+<pre><code class="language-go">type WorkerPool interface {
+    Submit(ctx context.Context, task WorkerTask) (string, error)
+    Status(ctx context.Context, taskID string) (WorkerTask, error)
+    Cancel(ctx context.Context, taskID string) error
+    List(ctx context.Context, filter *WorkerTaskFilter) ([]WorkerTask, error)
+}
+</code></pre>
+<h3>AuditLogger — Security Record</h3>
+<p><strong>What it does:</strong> Record who did what, when, from where.</p>
+<p><strong>How to get it:</strong> Via audit module (auto-wired by core)</p>
+<pre><code class="language-go">type AuditLogger interface {
+    Log(ctx context.Context, entry AuditEntry) error
+    Query(ctx context.Context, filter AuditFilter) ([]AuditEntry, error)
+    Export(ctx context.Context, format string) (io.ReadCloser, error)
+}
+</code></pre>
+<h3>ModuleMeshClient — Direct Module Calls</h3>
+<p><strong>What it does:</strong> Call another module directly for request/response patterns. All calls route through the gRPC mesh.</p>
+<p><strong>How to get it:</strong> Via <code>ModuleMesh</code> gRPC</p>
+<pre><code class="language-go">type ModuleMeshClient interface {
+    Call(ctx context.Context, targetModule, method string, payload []byte) ([]byte, error)
+    RegisterHandler(moduleID string, handler MeshHandler)
+}
+</code></pre>
+<hr>
+<h2>Discoverable Infrastructure Services</h2>
+<p>These services are provided by optional infrastructure modules. Other modules discover them at runtime via <code>FindByCapability()</code>.</p>
+<h3>AuthProvider — User Authentication</h3>
+<pre><code class="language-go">type AuthProvider interface {
+    Authenticate(ctx context.Context, credentials Credentials) (Session, error)
+    Validate(ctx context.Context, token string) (Session, error)
+    Revoke(ctx context.Context, token string) error
+}
+</code></pre>
+<h3>Authorizer — Permission Checks</h3>
+<pre><code class="language-go">type Authorizer interface {
+    Can(ctx context.Context, session Session, action string, resource string) (bool, error)
+}
+</code></pre>
+<h3>RateLimiterProvider — API Throttling</h3>
+<pre><code class="language-go">type RateLimiterProvider interface {
+    Allow(ctx context.Context, key string) bool
+    Enabled() bool
+}
+</code></pre>
+<h3>HealthMonitor — Health Checks</h3>
+<pre><code class="language-go">type HealthMonitor interface {
+    StartMonitoring(ctx context.Context, reg Registry, bus EventBus) error
+    Stop(ctx context.Context) error
+}
+</code></pre>
+<h3>CallPolicyProvider — Inter-Module Access Control</h3>
+<p><strong>What it does:</strong> Determines whether module A is allowed to call module B. The mesh client enforces this before dispatching calls. If no provider is registered, all calls are <strong>denied by default</strong> (deny-by-default). Deployments that want open mode must register an explicit permissive call policy provider.</p>
+<pre><code class="language-go">type CallPolicyProvider interface {
+    AllowCall(ctx context.Context, callerModuleID, targetModuleID, method string) (bool, error)
+}
+</code></pre>
+<p><strong>Setting caller identity on outgoing calls:</strong></p>
+<pre><code class="language-go">ctx = contracts.WithCallerID(ctx, &quot;my-module&quot;)
+result, err := meshv1.NewModuleMeshClient(conn).Call(ctx, &amp;meshv1.CallRequest{TargetModule:  &quot;target-module&quot;, &quot;Method&quot;, payload)
+</code></pre>
+<hr>
+<h2>Runtime Discovery Services</h2>
+<p>These services are discovered by modules at runtime via <code>FindByCapability()</code>. If none is registered, the service is simply unavailable — modules degrade gracefully.</p>
+<h3>SecretsProvider — API Keys and Passwords</h3>
+<p><strong>Capability:</strong> <code>&quot;secrets&quot;</code></p>
+<pre><code class="language-go">type SecretsProvider interface {
+    Get(ctx context.Context, key string) (string, error)
+    Set(ctx context.Context, key, value string) error
+    Delete(ctx context.Context, key string) error
+    List(ctx context.Context) ([]string, error)
+}
+</code></pre>
+<h3>DatabaseProvider — Persistent Storage</h3>
+<p><strong>Capability:</strong> <code>&quot;database&quot;</code></p>
+<pre><code class="language-go">type DatabaseProvider interface {
+    Open(ctx context.Context, connString string) error
+    Close(ctx context.Context) error
+    Health(ctx context.Context) error
+    Exec(ctx context.Context, query string, args ...any) (int64, error)
+    Query(ctx context.Context, query string, args ...any) (Rows, error)
+    Transaction(ctx context.Context, fn func(Tx) error) error
+    Migrate(ctx context.Context, migrations []Migration) error
+}
+</code></pre>
+<h3>CacheProvider — Ephemeral State</h3>
+<p><strong>Capability:</strong> <code>&quot;cache&quot;</code></p>
+<pre><code class="language-go">type CacheProvider interface {
+    Get(ctx context.Context, key string) ([]byte, error)
+    Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+    Delete(ctx context.Context, keys ...string) error
+    Exists(ctx context.Context, key string) (bool, error)
+    Incr(ctx context.Context, key string, delta int64) (int64, error)
+    CompareAndSwap(ctx context.Context, key string, oldValue, newValue []byte) (bool, error)
+    Lock(ctx context.Context, key string, ttl time.Duration) (LockHandle, error)
+    Publish(ctx context.Context, channel string, msg []byte) error
+    Subscribe(ctx context.Context, channel string) (&lt;-chan []byte, error)
+}
+</code></pre>
+<h3>CacheLayer — Storage Read-Through Cache</h3>
+<p><strong>Capability:</strong> <code>&quot;cache.local&quot;</code></p>
+<pre><code class="language-go">type CacheLayer interface {
+    Get(ctx context.Context, key string) ([]byte, bool)
+    Set(ctx context.Context, key string, data []byte) error
+    Invalidate(ctx context.Context, prefix string) error
+}
+</code></pre>
+<h3>MetricsProvider — Counters, Gauges, Histograms</h3>
+<p><strong>Capability:</strong> <code>&quot;metrics&quot;</code></p>
+<pre><code class="language-go">type MetricsProvider interface {
+    Counter(name string, labels map[string]string) Counter
+    Gauge(name string, labels map[string]string) Gauge
+    Histogram(name string, labels map[string]string, buckets []float64) Histogram
+}
+</code></pre>
+<h3>TracingProvider — Distributed Request Tracing</h3>
+<p><strong>Capability:</strong> <code>&quot;tracing&quot;</code></p>
+<pre><code class="language-go">type TracingProvider interface {
+    StartSpan(ctx context.Context, name string) (context.Context, Span)
+}
+
+type Span interface {
+    SetAttribute(key string, value string)
+    SetStatus(code SpanStatusCode, description string)
+    End()
+}
+</code></pre>
+<h3>CircuitBreaker — Fail-Fast Protection</h3>
+<p><strong>Capability:</strong> <code>&quot;circuitbreaker&quot;</code></p>
+<pre><code class="language-go">type CircuitBreaker interface {
+    Execute(ctx context.Context, key string, fn func(context.Context) error) error
+    State(key string) CircuitState  // Closed, Open, HalfOpen
+}
+</code></pre>
+<h3>ConfigWatcher — Runtime Change Notifications</h3>
+<p><strong>Capability:</strong> <code>&quot;config.watcher&quot;</code></p>
+<pre><code class="language-go">type ConfigWatcher interface {
+    OnChange(ctx context.Context, capability string, handler func()) (cancel func())
+}
+</code></pre>
+<h3>DeadLetterProvider — Failed Event Storage</h3>
+<p><strong>Capability:</strong> <code>&quot;deadletter&quot;</code></p>
+<pre><code class="language-go">type DeadLetterProvider interface {
+    Store(ctx context.Context, event Event, handlerName string, err error) error
+    Replay(ctx context.Context, handlerName string, since time.Time) ([]DeadLetterEntry, error)
+    Discard(ctx context.Context, eventID string) error
+}
+</code></pre>
+<h3>IdentityProvider — Caller Identity Extraction</h3>
+<p><strong>Capability:</strong> <code>&quot;identity&quot;</code></p>
+<pre><code class="language-go">type IdentityProvider interface {
+    ExtractIdentity(ctx context.Context) (*Identity, error)
+}
+
+type Identity struct {
+    ID     string
+    Kind   string
+    Roles  []string
+    Claims map[string]any
+    Extra  map[string]any
+}
+</code></pre>
+<h3>StructuredLogger — Structured Logging</h3>
+<p><strong>Capability:</strong> <code>&quot;logging&quot;</code></p>
+<pre><code class="language-go">type StructuredLogger interface {
+    Debug(ctx context.Context, msg string, fields map[string]any)
+    Info(ctx context.Context, msg string, fields map[string]any)
+    Warn(ctx context.Context, msg string, fields map[string]any)
+    Error(ctx context.Context, msg string, fields map[string]any)
+    Level() LogLevel
+}
+</code></pre>
+<h3>RetryProvider — Retry with Backoff</h3>
+<p><strong>Capability:</strong> <code>&quot;retry&quot;</code></p>
+<pre><code class="language-go">type RetryProvider interface {
+    Execute(ctx context.Context, policy RetryPolicy, fn func(context.Context) error) error
+}
+
+type RetryPolicy struct {
+    MaxAttempts   int
+    InitialDelay  time.Duration
+    MaxDelay      time.Duration
+    BackoffFactor float64
+    Jitter        bool
+    Extra         map[string]any
+}
+</code></pre>
+<h3>IdempotencyProvider — Duplicate Prevention</h3>
+<p><strong>Capability:</strong> <code>&quot;idempotency&quot;</code></p>
+<pre><code class="language-go">type IdempotencyProvider interface {
+    Store(ctx context.Context, key string, result []byte, ttl time.Duration) (bool, error)
+    Exists(ctx context.Context, key string) (bool, error)
+    Result(ctx context.Context, key string) ([]byte, error)
+}
+</code></pre>
+<h3>FeatureFlagProvider — Gradual Rollouts</h3>
+<p><strong>Capability:</strong> <code>&quot;feature.flags&quot;</code></p>
+<pre><code class="language-go">type FeatureFlagProvider interface {
+    IsEnabled(ctx context.Context, flag string, defaultValue bool) bool
+    GetVariant(ctx context.Context, flag string, defaultValue string) string
+}
+</code></pre>
+<h3>SerializationProvider — Content-Type Negotiation</h3>
+<p><strong>Capability:</strong> <code>&quot;serialization&quot;</code></p>
+<pre><code class="language-go">type SerializationProvider interface {
+    Marshal(contentType string, v any) ([]byte, error)
+    Unmarshal(contentType string, data []byte, v any) error
+    SupportedTypes() []string
+}
+</code></pre>
+<h3>EncryptionProvider — Envelope Encryption</h3>
+<p><strong>Capability:</strong> <code>&quot;encryption&quot;</code></p>
+<pre><code class="language-go">type EncryptionProvider interface {
+    Encrypt(ctx context.Context, plaintext []byte) ([]byte, error)
+    Decrypt(ctx context.Context, ciphertext []byte) ([]byte, error)
+    RotateKey(ctx context.Context) error
+}
+</code></pre>
+<h3>DistributedLockProvider — Coordination</h3>
+<p><strong>Capability:</strong> <code>&quot;distributed.lock&quot;</code></p>
+<pre><code class="language-go">type DistributedLockProvider interface {
+    Acquire(ctx context.Context, key string, ttl time.Duration) (DistributedLockHandle, error)
+}
+
+type DistributedLockHandle interface {
+    Unlock(ctx context.Context) error
+    Renew(ctx context.Context, ttl time.Duration) error
+}
+</code></pre>
+<h3>DataRedactionProvider — PII Stripping</h3>
+<p><strong>Capability:</strong> <code>&quot;data.redaction&quot;</code></p>
+<pre><code class="language-go">type DataRedactionProvider interface {
+    Redact(ctx context.Context, data map[string]any, rules []string) (map[string]any, error)
+}
+</code></pre>
+<h3>EventStore — Append-Only Event Log</h3>
+<p><strong>Capability:</strong> <code>&quot;event.store&quot;</code></p>
+<pre><code class="language-go">type EventStore interface {
+    Append(ctx context.Context, stream string, events []Event) (firstSequence int64, err error)
+    Read(ctx context.Context, stream string, fromSequence int64, limit int) ([]EventStoreEntry, error)
+    Subscribe(ctx context.Context, stream string, fromSequence int64) (&lt;-chan EventStoreEntry, error)
+    Streams(ctx context.Context) ([]string, error)
+}
+</code></pre>
+<hr>
+<h2>gRPC Services (Sidecar Module Access)</h2>
+<p>These gRPC services are exposed on the mesh address. Sidecar modules use them to access core services. Compiled-in modules use the Fabric equivalents directly.</p>
+<h3>StorageService</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Put(stream PutRequest) returns PutResponse</code></td>
+<td>Client-streams an object into storage</td>
+</tr>
+<tr>
+<td><code>Get(GetRequest) returns stream GetResponse</code></td>
+<td>Server-streams an object from storage (supports byte ranges)</td>
+</tr>
+<tr>
+<td><code>Delete(DeleteRequest) returns DeleteResponse</code></td>
+<td>Removes an object</td>
+</tr>
+<tr>
+<td><code>Stat(StatRequest) returns StatResponse</code></td>
+<td>Object metadata (size, type, modification time)</td>
+</tr>
+<tr>
+<td><code>List(ListRequest) returns ListResponse</code></td>
+<td>Objects matching a key prefix</td>
+</tr>
+<tr>
+<td><code>Capabilities(CapabilitiesRequest) returns CapabilitiesResponse</code></td>
+<td>Which optional interfaces the backend supports (hardlinkable, streamable, etc.)</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/storage/v1/storage.proto</code></p>
+<h3>DiscoveryService (Registry Queries)</h3>
+<p>Extended with module discovery RPCs for sidecar modules:</p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FindByCapability(FindByCapabilityRequest) returns FindByCapabilityResponse</code></td>
+<td>Find modules by capability string</td>
+</tr>
+<tr>
+<td><code>FindByRole(FindByRoleRequest) returns FindByRoleResponse</code></td>
+<td>Find modules by role string</td>
+</tr>
+<tr>
+<td><code>Resolve(ResolveRequest) returns ResolveResponse</code></td>
+<td>Get a single module&#39;s info by ID</td>
+</tr>
+<tr>
+<td><code>ListAll(ListAllRequest) returns ListAllResponse</code></td>
+<td>All registered modules (local + peer), with state and health</td>
+</tr>
+</tbody></table>
+<p>Plus cluster membership RPCs: <code>Join</code>, <code>Leave</code>, <code>Heartbeat</code>, <code>Members</code>, <code>Watch</code>.</p>
+<p><strong>Proto:</strong> <code>muxcore/discovery/v1/discovery.proto</code></p>
+<h3>EventService</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Publish(PublishRequest) returns PublishResponse</code></td>
+<td>Send an event to all subscribers</td>
+</tr>
+<tr>
+<td><code>Subscribe(SubscribeRequest) returns stream Event</code></td>
+<td>Receive events matching types</td>
+</tr>
+<tr>
+<td><code>Request(RequestEvent) returns Event</code></td>
+<td>Request/reply event pattern</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/events/v1/events.proto</code></p>
+<h3>ModuleMesh</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Call(CallRequest) returns CallResponse</code></td>
+<td>Unary call to a specific module</td>
+</tr>
+<tr>
+<td><code>StreamCall(stream CallRequest) returns stream CallResponse</code></td>
+<td>Bidirectional streaming calls</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/mesh/v1/module.proto</code></p>
+<h3>ModuleRegistration</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Register(RegisterRequest) returns RegisterResponse</code></td>
+<td>Register a sidecar module (returns <code>mesh_addr</code>, <code>node_id</code>)</td>
+</tr>
+<tr>
+<td><code>Unregister(UnregisterRequest) returns UnregisterResponse</code></td>
+<td>Unregister at shutdown</td>
+</tr>
+<tr>
+<td><code>BootstrapRegister(BootstrapRegisterRequest) returns BootstrapRegisterResponse</code></td>
+<td>External modules obtain a signed TLS certificate using a one-time token</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/module/v1/registration.proto</code></p>
+<h3>SpoolService (Admin)</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListSpools(ListSpoolsRequest) returns ListSpoolsResponse</code></td>
+<td>Returns all configured spool URLs</td>
+</tr>
+<tr>
+<td><code>ListTags(ListTagsRequest) returns ListTagsResponse</code></td>
+<td>Lists all tag names on a spool</td>
+</tr>
+<tr>
+<td><code>FetchTag(FetchTagRequest) returns FetchTagResponse</code></td>
+<td>Fetches a tag definition without deploying</td>
+</tr>
+<tr>
+<td><code>DeployTag(DeployTagRequest) returns DeployTagResponse</code></td>
+<td>Fetches, resolves, and spawns modules from a tag. Idempotent</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/spool/v1/spool.proto</code></p>
+<h3>ModuleLifecycleService (Admin)</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ListModules(ListModulesRequest) returns ListModulesResponse</code></td>
+<td>All modules known to this node with state and health</td>
+</tr>
+<tr>
+<td><code>SpawnModule(SpawnModuleRequest) returns SpawnModuleResponse</code></td>
+<td>Resolve and spawn a module from a tag entry</td>
+</tr>
+<tr>
+<td><code>StopModule(StopModuleRequest) returns StopModuleResponse</code></td>
+<td>Send SIGTERM and wait for stop</td>
+</tr>
+<tr>
+<td><code>RestartModule(RestartModuleRequest) returns RestartModuleResponse</code></td>
+<td>Kill and re-spawn from existing binary</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/lifecycle/v1/lifecycle.proto</code></p>
+<h3>AuditService (Admin)</h3>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Query(AuditQueryRequest) returns AuditQueryResponse</code></td>
+<td>Search audit entries by actor, action, resource, time range</td>
+</tr>
+<tr>
+<td><code>Export(AuditExportRequest) returns stream AuditExportChunk</code></td>
+<td>Stream matching entries in JSON or CSV</td>
+</tr>
+<tr>
+<td><code>VerifyChain(AuditVerifyChainRequest) returns AuditVerifyChainResponse</code></td>
+<td>Hash-chain integrity check without exposing entry content</td>
+</tr>
+<tr>
+<td><code>Log(LogRequest) returns LogResponse</code></td>
+<td>Write an entry to the audit log</td>
+</tr>
+</tbody></table>
+<p><strong>Proto:</strong> <code>muxcore/audit/v1/audit.proto</code></p>
+<h3>Service Discovery Flow</h3>
+<pre><code>Sidecar Module                      Core gRPC (mesh_addr)
+     │                                       │
+     │── Register(ModuleInfo) ──────────────►│  ModuleRegistration
+     │◄─ RegisterResponse{mesh_addr} ────────│
+     │                                       │
+     │── FindByCapability(&quot;storage&quot;) ───────►│  DiscoveryService
+     │◄─ [{id, capabilities, roles}...] ─────│
+     │                                       │
+     │── Put(key, chunks) ──────────────────►│  StorageService
+     │◄─ PutResponse{key, size} ────────────│
+     │                                       │
+     │── Publish(event) ────────────────────►│  EventService
+     │◄─ PublishResponse{} ─────────────────│
+</code></pre>
+<h2>Storage Capability Interfaces</h2>
+<p>Storage providers can optionally implement these to advertise features:</p>
+<pre><code class="language-go">type Streamable interface {
+    Stream(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error)
+}
+
+type Seekable interface {
+    Seek(ctx context.Context, key string, offset int64) (int64, error)
+}
+
+type Watchable interface {
+    Watch(ctx context.Context, prefix string) (&lt;-chan StorageEvent, error)
+}
+
+type AtomicMovable interface {
+    AtomicMove(ctx context.Context, src, dst string) error
+}
+
+type Hardlinkable interface {
+    Hardlink(ctx context.Context, src, dst string) error
+}
+
+type TieredProvider interface {
+    // Tier management for hot/warm/cold storage
+}
+</code></pre>
+<hr>
+<h2>Other Fabric Contracts</h2>
+<h3>Scheduler — Task Scheduling</h3>
+<p><strong>Module-only</strong> — core has no built-in Scheduler. Discover via capability <code>&quot;scheduler&quot;</code> (reference impl: <code>scheduler-cron</code>).</p>
+<pre><code class="language-go">type Scheduler interface {
+    Schedule(ctx context.Context, task SchedulerTask) (string, error)
+    Cancel(ctx context.Context, taskID string) error
+    Status(ctx context.Context, taskID string) (SchedulerTaskStatus, error)
+}
+</code></pre>
+<h3>BackupProvider — Backup and Restore</h3>
+<pre><code class="language-go">type BackupProvider interface {
+    CreateBackup(ctx context.Context) (BackupInfo, error)
+    Restore(ctx context.Context, backupID string) error
+    ListBackups(ctx context.Context) ([]BackupInfo, error)
+    DeleteBackup(ctx context.Context, backupID string) error
+}
+
+type Backupable interface {
+    ExportState(ctx context.Context) ([]byte, error)
+    ImportState(ctx context.Context, data []byte) error
+}
+</code></pre>
+<h3>SettingsProvider — Module Configuration UI</h3>
+<pre><code class="language-go">type SettingsProvider interface {
+    Settings() []SettingDef
+}
+</code></pre>
+<h3>Executor — Worker Task Handler</h3>
+<pre><code class="language-go">type Executor interface {
+    CanHandle(taskType string) bool
+    Execute(ctx context.Context, task WorkerTask) (result []byte, err error)
+}
+</code></pre>
+<hr>
+<h3>WorkflowEngine</h3>
+<p><strong>Capability:</strong> <code>&quot;workflow.engine&quot;</code></p>
+<p>Multi-step tapestry orchestration. Discovered via <code>FindByCapability(&quot;workflow.engine&quot;)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>RegisterDefinition</code></td>
+<td>Store a tapestry template</td>
+</tr>
+<tr>
+<td><code>RemoveDefinition</code></td>
+<td>Remove a tapestry template</td>
+</tr>
+<tr>
+<td><code>GetDefinition</code></td>
+<td>Retrieve a tapestry template</td>
+</tr>
+<tr>
+<td><code>ListDefinitions</code></td>
+<td>List all registered tapestries</td>
+</tr>
+<tr>
+<td><code>Run</code></td>
+<td>Start a tapestry execution</td>
+</tr>
+<tr>
+<td><code>Status</code></td>
+<td>Check tapestry progress</td>
+</tr>
+<tr>
+<td><code>Cancel</code></td>
+<td>Stop a running tapestry</td>
+</tr>
+<tr>
+<td><code>Pause</code></td>
+<td>Suspend at next step boundary</td>
+</tr>
+<tr>
+<td><code>Resume</code></td>
+<td>Continue a paused tapestry</td>
+</tr>
+<tr>
+<td><code>ListRuns</code></td>
+<td>Query tapestry history</td>
+</tr>
+</tbody></table>
+<p><strong>Types:</strong> <code>TapestryDefinition</code>, <code>TapestryStep</code>, <code>TapestryRun</code>, <code>StepResult</code>, <code>TapestryRunFilter</code></p>
+<p><strong>Event types:</strong> <code>workflow.step.started</code>, <code>workflow.step.completed</code>, <code>workflow.step.failed</code></p>
+<p><strong>Step-to-step data passing:</strong> <code>StepResult.Output</code> + <code>TapestryStep.InputMapping</code></p>
+<p><strong>DAG support:</strong> <code>depends_on</code> enables parallel converging steps.</p>
+<h2>Media Admin Service Contract</h2>
+<p><strong>Repo:</strong> <code>github.com/Muxcore-Media/contracts-media-admin</code>
+<strong>Capability:</strong> <code>&quot;media.library&quot;</code></p>
+<p>Media library modules (movies, TV, books, etc.) implement the <code>MediaAdminService</code> gRPC service to provide browsing, search, metadata editing, and artwork management to the admin UI. Core never imports this proto — it is a domain contract between media modules and the admin UI.</p>
+<h3>Proto: <code>muxcore.media.admin.v1.MediaAdminService</code></h3>
+<p><strong>RPCs:</strong></p>
+<table>
+<thead>
+<tr>
+<th>RPC</th>
+<th>Request</th>
+<th>Response</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GetMediaTypeInfo</code></td>
+<td><code>GetMediaTypeInfoRequest</code></td>
+<td><code>GetMediaTypeInfoResponse</code></td>
+<td>Returns display name (&quot;Movies&quot;), icon, and available filter fields for the admin UI nav tab</td>
+</tr>
+<tr>
+<td><code>ListItems</code></td>
+<td><code>ListItemsRequest</code></td>
+<td><code>ListItemsResponse</code></td>
+<td>Paginated, filterable, searchable list of media items</td>
+</tr>
+<tr>
+<td><code>GetItem</code></td>
+<td><code>GetItemRequest</code></td>
+<td><code>GetItemResponse</code></td>
+<td>Single media item with full detail</td>
+</tr>
+<tr>
+<td><code>UpdateMetadata</code></td>
+<td><code>UpdateMetadataRequest</code></td>
+<td><code>UpdateMetadataResponse</code></td>
+<td>Edit title, description, and type-specific metadata fields</td>
+</tr>
+<tr>
+<td><code>ListArtwork</code></td>
+<td><code>ListArtworkRequest</code></td>
+<td><code>ListArtworkResponse</code></td>
+<td>Artwork variants for a media item</td>
+</tr>
+<tr>
+<td><code>ReplaceArtwork</code></td>
+<td>stream <code>ReplaceArtworkRequest</code></td>
+<td><code>ReplaceArtworkResponse</code></td>
+<td>Upload or replace artwork image</td>
+</tr>
+</tbody></table>
+<h3>Key Design: The Meta Pattern</h3>
+<p>Each <code>MediaItem</code> carries a <code>map&lt;string, string&gt; metadata</code> field for type-specific data. Movie modules store <code>{&quot;runtime&quot;: &quot;148&quot;, &quot;director&quot;: &quot;James Cameron&quot;}</code>, TV modules store <code>{&quot;season_count&quot;: &quot;5&quot;, &quot;episode_count&quot;: &quot;62&quot;}</code>, book modules store <code>{&quot;author&quot;: &quot;Frank Herbert&quot;, &quot;page_count&quot;: &quot;412&quot;}</code>. The admin UI renders these fields generically based on <code>FilterField</code> definitions from <code>GetMediaTypeInfo</code>.</p>
+<h3>Communication Pattern</h3>
+<p>The admin UI discovers media modules by <code>FindByCapability(&quot;media.library&quot;)</code>, gets each module&#39;s <code>HTTPAddr</code>, dials the module&#39;s gRPC <code>MediaAdminService</code> endpoint directly, and calls the appropriate RPC. This is the same direct-gRPC pattern used for the auth provider.</p>
+<h3>Module Registration</h3>
+<p>Media modules must register with core declaring the <code>&quot;media.library&quot;</code> capability:</p>
+<pre><code class="language-go">regClient.Register(ctx, &amp;modulev1.RegisterRequest{
+    ModuleId: &quot;media-movies&quot;,
+    ModuleInfo: &amp;modulev1.ModuleInfo{
+        Name:         &quot;Movies&quot;,
+        Capabilities: []string{&quot;media.library&quot;},
+        HttpAddr:     &quot;:9420&quot;,  // media-movies gRPC (see Port-Map; not :9410)
+    },
+})
+</code></pre>
+<h2>Domain Contracts</h2>
+<p>Domain contracts live in separate versioned repos under <code>github.com/Muxcore-Media/contracts-*</code>. Core imports none of them (workflow types for tapestries live in core <code>pkg/contracts/workflow.go</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Repo</th>
+<th>What it defines</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>contracts-downloader</code></td>
+<td>gRPC <code>DownloaderService</code> (<code>AddTorrent</code>, <code>GetTorrent</code>, <code>ListTorrents</code>, …)</td>
+</tr>
+<tr>
+<td><code>contracts-indexer</code></td>
+<td>Indexer / search types</td>
+</tr>
+<tr>
+<td><code>contracts-media-admin</code></td>
+<td>Media admin gRPC / admin UI seam</td>
+</tr>
+<tr>
+<td><code>contracts-reconciler</code></td>
+<td>Structural contract reconciliation</td>
+</tr>
+</tbody></table>
+<p>Additional domain packages may appear as media modules land; do not assume a repo exists until it is published.</p>
+<hr>
+<h2>Third-Party Contracts</h2>
+<p>Domain contract interfaces are patterns, not org-bound dependencies. A module that defines its own <code>MediaLibrary</code> interface in <code>github.com/some-dev/contracts-media</code> is weaving the same pattern — but Go&#39;s nominal type system treats it as a different type.</p>
+<h3>Structural Compatibility</h3>
+<p>Two interfaces are structurally compatible if they have:</p>
+<ul>
+<li>The same exported method names</li>
+<li>The same parameter types in the same order</li>
+<li>The same return types in the same order</li>
+</ul>
+<p>Package paths, comments, and embedded interfaces are <strong>not</strong> compared. Only the method signatures matter.</p>
+<h3>Contract Reconciliation</h3>
+<p>When the spool marketplace imports a module that uses non-canonical contract repos, it runs the <code>contracts-reconciler</code> engine:</p>
+<ol>
+<li>Parses both the third-party and canonical contract repos&#39; Go source via AST</li>
+<li>Extracts the named interface and compares method signatures structurally</li>
+<li>If they match, generates a <code>go.mod replace</code> directive normalizing the import to the canonical path</li>
+<li>If they differ, rejects the import with a detailed mismatch report</li>
+</ol>
+<p>This preserves interface compatibility while honoring the MuxCore philosophy that contracts are patterns, not org-bound dependencies.</p>
+<h3>Type Aliases (Recommended)</h3>
+<p>The simplest approach for third-party contract repos is to use Go type aliases:</p>
+<pre><code class="language-go">package media
+
+import &quot;github.com/Muxcore-Media/contracts-media&quot;
+
+// Type alias — this IS the canonical type. No reconciliation needed.
+type MediaLibrary = media.MediaLibrary
+type MediaObject   = media.MediaObject
+type MediaFilter   = media.MediaFilter
+type MediaType     = media.MediaType
+</code></pre>
+<p>Modules importing from this repo get the canonical types directly. The Go compiler treats them as identical. No reconciliation step is needed.</p>
+<h3>Declaring Contracts</h3>
+<p>Third-party modules declare their contract usage in <code>muxcore.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;contracts&quot;: [
+    {
+      &quot;repo&quot;: &quot;github.com/my-org/contracts-downloader&quot;,
+      &quot;version&quot;: &quot;v2.0.0&quot;,
+      &quot;interface&quot;: &quot;DownloaderService&quot;
+    }
+  ]
+}
+</code></pre>
+<p>This tells the spool marketplace which interfaces to reconcile. Modules that use type aliases or import canonical repos directly don&#39;t need this declaration.</p>
+<p>See <a href="Spool-and-Marketplace.html">Spool and Marketplace</a> for the full import and reconciliation flow.</p>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Writing-Modules.html">Writing Modules</a> — how to use these contracts in practice</li>
+<li><a href="Module-System.html">Module System</a> — discovery and lifecycle patterns</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

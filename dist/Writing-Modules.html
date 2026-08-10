@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Writing Modules · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html" class="active">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Writing Modules</h1>
+<p><strong>Build your own module — a thread to weave into the MuxCore fabric.</strong> This guide walks through creating a sidecar module from nothing: declaring its role, connecting to the gRPC mesh, discovering other modules, and communicating through events.</p>
+<hr>
+<h2>Before You Start</h2>
+<p>You need:</p>
+<ul>
+<li>Go 1.26 or later (matches current core <code>go.mod</code>)</li>
+<li>A GitHub account (to publish the module)</li>
+<li>Understanding of <a href="Core-Concepts.html">Core Concepts</a> and the <a href="Module-System.html">Module System</a></li>
+<li>A running MuxCore instance (<code>muxcored</code>) for testing</li>
+</ul>
+<hr>
+<h2>Module Architecture</h2>
+<p>Every module is a <strong>standalone binary</strong> — not compiled into core. Core spawns it as a child process; the module connects to the gRPC mesh and registers at runtime.</p>
+<pre><code>my-module/
+├── cmd/
+│   └── module/
+│       └── main.go        ← sidecar entry point (gRPC registration, signal handling)
+├── internal/
+│   ├── module.go          ← contracts.Module implementation
+│   └── ...                ← module-specific logic
+├── go.mod                 ← depends on core + contract repos
+├── go.sum
+└── muxcore.json           ← marketplace metadata
+</code></pre>
+<p>Reference implementation: <a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a>.</p>
+<hr>
+<h2>Step 1: Create the Go Module</h2>
+<pre><code class="language-bash">mkdir my-module &amp;&amp; cd my-module
+go mod init github.com/yourname/my-module
+go get github.com/Muxcore-Media/core
+go get github.com/Muxcore-Media/contracts-downloader  # if building a downloader
+</code></pre>
+<hr>
+<h2>Step 2: Implement the Module Interface</h2>
+<p>Every module implements the <code>contracts.Module</code> lifecycle interface:</p>
+<pre><code class="language-go">package internal
+
+import (
+    &quot;context&quot;
+    &quot;github.com/Muxcore-Media/core/pkg/contracts&quot;
+    dl &quot;github.com/Muxcore-Media/contracts-downloader&quot;
+)
+
+type Module struct {
+    id       string
+    meshAddr string
+    conn     *grpc.ClientConn
+    // ... module-specific fields
+}
+
+func NewModule(moduleID, meshAddr string, conn *grpc.ClientConn) *Module {
+    return &amp;Module{id: moduleID, meshAddr: meshAddr, conn: conn}
+}
+
+func (m *Module) Info() contracts.ModuleInfo {
+    return contracts.ModuleInfo{
+        ID:           &quot;downloader-native-torrent&quot;,
+        Name:         &quot;Native Torrent Downloader&quot;,
+        Version:      &quot;1.0.0&quot;,
+        Roles:        []string{&quot;downloader&quot;},
+        Description:  &quot;Native BitTorrent engine for MuxCore&quot;,
+        Author:       &quot;MuxCore&quot;,
+        Capabilities: []string{&quot;downloader.torrent&quot;, &quot;downloader.native.torrent&quot;},
+        Contracts: []contracts.ContractDeclaration{
+            {
+                Repo:      &quot;github.com/Muxcore-Media/contracts-downloader&quot;,
+                Version:   &quot;v1.0.0&quot;,
+                Interface: &quot;DownloaderService&quot;,
+            },
+        },
+        DependsOn: []string{},
+    }
+}
+
+func (m *Module) Init(ctx context.Context) error {
+    // Discover services via DiscoveryService gRPC
+    discClient := discoveryv1.NewDiscoveryServiceClient(m.conn)
+    resp, _ := discClient.FindByCapability(ctx, &amp;discoveryv1.FindByCapabilityRequest{
+        Capability: &quot;storage&quot;,
+    })
+    if len(resp.Modules) &gt; 0 {
+        // Storage backend found — set up storage client
+    }
+    return nil
+}
+
+func (m *Module) Start(ctx context.Context) error {
+    // Begin operations: start pollers, connect to external services
+    return nil
+}
+
+func (m *Module) Stop(ctx context.Context) error {
+    // Graceful shutdown: stop pollers, close connections
+    return nil
+}
+
+func (m *Module) Health(ctx context.Context) error {
+    // Check connectivity to external dependencies
+    return nil
+}
+</code></pre>
+<hr>
+<h2>Step 3: Write the Sidecar Entry Point</h2>
+<p>Create <code>cmd/module/main.go</code> — this is the binary that core spawns:</p>
+<pre><code class="language-go">package main
+
+import (
+    &quot;context&quot;
+    &quot;flag&quot;
+    &quot;log/slog&quot;
+    &quot;os&quot;
+    &quot;os/signal&quot;
+    &quot;syscall&quot;
+    &quot;time&quot;
+
+    &quot;github.com/yourname/my-module/internal&quot;
+    modulev1 &quot;github.com/Muxcore-Media/core/proto/gen/muxcore/module/v1&quot;
+    &quot;google.golang.org/grpc&quot;
+    &quot;google.golang.org/grpc/credentials/insecure&quot;
+)
+
+func main() {
+    meshAddr := flag.String(&quot;muxcore-mesh-addr&quot;, &quot;localhost:9090&quot;, &quot;gRPC address of the MuxCore mesh&quot;)
+    moduleID := flag.String(&quot;muxcore-module-id&quot;, &quot;my-module&quot;, &quot;Module identifier&quot;)
+    tlsCert := flag.String(&quot;muxcore-tls-cert&quot;, &quot;&quot;, &quot;Path to TLS client certificate (auto-provided by core)&quot;)
+    tlsKey := flag.String(&quot;muxcore-tls-key&quot;, &quot;&quot;, &quot;Path to TLS client private key (auto-provided by core)&quot;)
+    flag.Parse()
+
+    // Connect to core mesh with retry
+    var conn *grpc.ClientConn
+    var err error
+    for attempt := 0; attempt &lt; 5; attempt++ {
+        conn, err = grpc.NewClient(*meshAddr,
+            grpc.WithTransportCredentials(insecure.NewCredentials()),
+        )
+        if err == nil {
+            break
+        }
+        if attempt &lt; 4 {
+            slog.Warn(&quot;mesh connection failed, retrying&quot;, &quot;attempt&quot;, attempt+1, &quot;error&quot;, err)
+            time.Sleep(time.Duration(attempt+1) * time.Second)
+        }
+    }
+    if err != nil {
+        slog.Error(&quot;failed to connect to mesh&quot;, &quot;error&quot;, err)
+        os.Exit(1)
+    }
+    defer conn.Close()
+
+    // Register with core
+    regClient := modulev1.NewModuleRegistrationClient(conn)
+    mod := internal.NewModule(*moduleID, *meshAddr, conn)
+    info := mod.Info()
+
+    resp, err := regClient.Register(context.Background(), &amp;modulev1.RegisterRequest{
+        ModuleId:   *moduleID,
+        ModuleInfo: &amp;modulev1.ModuleInfo{
+            Id:             info.ID,
+            Name:           info.Name,
+            Version:        info.Version,
+            Roles:          info.Roles,
+            Description:    info.Description,
+            Author:         info.Author,
+            Capabilities:   info.Capabilities,
+            DependsOn:      info.DependsOn,
+            MinCoreVersion: info.MinCoreVersion,
+            HttpAddr:       info.HTTPAddr,
+        },
+        MeshAddr: *meshAddr,
+    })
+    if err != nil || !resp.Accepted {
+        slog.Error(&quot;registration failed&quot;, &quot;error&quot;, err, &quot;reason&quot;, resp.Error)
+        os.Exit(1)
+    }
+
+    // Start the module
+    ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+    defer cancel()
+
+    mod.Init(ctx)
+    mod.Start(ctx)
+
+    &lt;-ctx.Done() // Wait for shutdown signal
+
+    mod.Stop(context.Background())
+    regClient.Unregister(context.Background(), &amp;modulev1.UnregisterRequest{ModuleId: *moduleID})
+}
+</code></pre>
+<p>Every sidecar binary must:</p>
+<ul>
+<li>Accept <code>--muxcore-mesh-addr</code> (default: <code>localhost:9090</code>)</li>
+<li>Accept <code>--muxcore-module-id</code> (its identifier)</li>
+<li>Accept <code>--muxcore-tls-cert</code> and <code>--muxcore-tls-key</code> (auto-provided by core when spawned via <code>--tag</code>)</li>
+<li>Connect to the gRPC mesh</li>
+<li>Call <code>ModuleRegistration.Register()</code> with structured <code>ModuleInfo</code></li>
+<li>Respond to SIGTERM/SIGINT for graceful shutdown</li>
+<li>Call <code>ModuleRegistration.Unregister()</code> on exit</li>
+</ul>
+<hr>
+<h2>External Modules (Bootstrap Tokens)</h2>
+<p>If your module runs <strong>outside</strong> core&#39;s sidecar manager (separate container, different machine), you cannot rely on auto-issued TLS certificates. Instead, use the <code>BootstrapRegister</code> RPC with a one-time token:</p>
+<ol>
+<li>Generate a bootstrap token for your module on the core node</li>
+<li>Pass the token to your module (via env var, config file, or CLI flag)</li>
+<li>Your module calls <code>BootstrapRegister</code> to receive a signed certificate</li>
+<li>Your module reconnects with mTLS using the received credentials</li>
+</ol>
+<pre><code class="language-go">regClient := modulev1.NewModuleRegistrationClient(conn)
+
+// Exchange bootstrap token for a signed certificate
+bootstrapResp, err := regClient.BootstrapRegister(ctx, &amp;modulev1.BootstrapRegisterRequest{
+    Token:    *bootstrapToken,
+    ModuleId: *moduleID,
+})
+if err != nil || !bootstrapResp.Accepted {
+    slog.Error(&quot;bootstrap registration failed&quot;, &quot;error&quot;, err)
+    os.Exit(1)
+}
+
+// Use the returned credentials for subsequent connections
+certPEM := bootstrapResp.SignedCert
+keyPEM := bootstrapResp.KeyPem
+caPEM := bootstrapResp.CaCert
+</code></pre>
+<p>The token is single-use, expires after 5 minutes, and is bound to a specific module ID. See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> for the full architecture.</p>
+<hr>
+<p>Create <code>muxcore.json</code> in the repo root:</p>
+<pre><code class="language-json">{
+  &quot;name&quot;: &quot;My Module&quot;,
+  &quot;description&quot;: &quot;Does something useful&quot;,
+  &quot;version&quot;: &quot;1.0.0&quot;,
+  &quot;author&quot;: &quot;Your Name&quot;,
+  &quot;roles&quot;: [&quot;example&quot;],
+  &quot;capabilities&quot;: [&quot;example.basic&quot;],
+  &quot;contracts&quot;: [
+    {&quot;repo&quot;: &quot;github.com/Muxcore-Media/contracts-downloader&quot;, &quot;version&quot;: &quot;v1.0.0&quot;, &quot;interface&quot;: &quot;DownloaderService&quot;}
+  ]
+}
+</code></pre>
+<hr>
+<h2>Discovering Other Modules</h2>
+<p>Find modules via the <code>DiscoveryService</code> gRPC:</p>
+<pre><code class="language-go">disc := discoveryv1.NewDiscoveryServiceClient(conn)
+
+// By role
+resp, _ := disc.FindByRole(ctx, &amp;discoveryv1.FindByRoleRequest{Role: &quot;downloader&quot;})
+for _, mod := range resp.Modules {
+    // mod.Id, mod.Roles, mod.Capabilities
+}
+
+// By capability
+resp, _ := disc.FindByCapability(ctx, &amp;discoveryv1.FindByCapabilityRequest{Capability: &quot;secrets&quot;})
+
+// Direct resolve
+resp, _ := disc.Resolve(ctx, &amp;discoveryv1.ResolveRequest{ModuleId: &quot;downloader-native-torrent&quot;})
+</code></pre>
+<hr>
+<h2>Communicating Through Events</h2>
+<h3>Publishing Events</h3>
+<pre><code class="language-go">import dl &quot;github.com/Muxcore-Media/contracts-downloader&quot;
+
+payload, _ := json.Marshal(dl.DownloadCompletedPayload{
+    DownloadID: id,
+    Title:      &quot;Movie Title&quot;,
+})
+
+events := eventsv1.NewEventServiceClient(conn)
+events.Publish(ctx, &amp;eventsv1.PublishRequest{
+    Event: &amp;eventsv1.Event{
+        Type:    dl.EventDownloadCompleted,
+        Source:  &quot;my-module&quot;,
+        Payload: payload,
+    },
+})
+</code></pre>
+<p>Event types and payloads are defined in the domain contract repos. See <a href="Event-System.html">Event System</a> for the full event model.</p>
+<hr>
+<h2>Using Storage</h2>
+<pre><code class="language-go">store := storagev1.NewStorageServiceClient(conn)
+
+// Upload (client-streaming)
+stream, _ := store.Put(ctx)
+stream.Send(&amp;storagev1.PutRequest{Key: &quot;path/to/object&quot;, TotalSize: size})
+for _, chunk := range chunks {
+    stream.Send(&amp;storagev1.PutRequest{Chunk: chunk})
+}
+resp, _ := stream.CloseAndRecv()
+
+// Download (server-streaming)
+getStream, _ := store.Get(ctx, &amp;storagev1.GetRequest{Key: &quot;path/to/object&quot;})
+for {
+    resp, err := getStream.Recv()
+    if err == io.EOF { break }
+    // process resp.Chunk
+}
+
+// Metadata
+stat, _ := store.Stat(ctx, &amp;storagev1.StatRequest{Key: &quot;path/to/object&quot;})
+caps, _ := store.Capabilities(ctx, &amp;storagev1.CapabilitiesRequest{})
+</code></pre>
+<hr>
+<h2>Calling Other Modules Directly</h2>
+<p>For request/response patterns, use the <code>ModuleMesh</code>:</p>
+<pre><code class="language-go">mesh := meshv1.NewModuleMeshClient(conn)
+resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
+    TargetModule: &quot;media-transcoder&quot;,
+    Method:       &quot;Status&quot;,
+    Payload:      jsonPayload,
+})
+</code></pre>
+<hr>
+<h2>Building Real Modules</h2>
+<h3>Downloader Module</h3>
+<p>Implement and register the shared gRPC service from <code>contracts-downloader</code>:</p>
+<pre><code class="language-go">import (
+    cdlv1 &quot;github.com/Muxcore-Media/contracts-downloader/muxcore/downloader/v1&quot;
+)
+
+// Register on the module gRPC server:
+cdlv1.RegisterDownloaderServiceServer(grpcSrv, &amp;contractsServer{m: m})
+
+func (s *contractsServer) AddTorrent(ctx context.Context, req *cdlv1.AddTorrentRequest) (*cdlv1.AddTorrentResponse, error) {
+    // req.TorrentUrl, req.SavePath, req.Category, req.Paused
+    return &amp;cdlv1.AddTorrentResponse{TorrentId: id, Name: name, InfoHash: hash}, nil
+}
+</code></pre>
+<p>Callers discover capability <code>&quot;downloader&quot;</code> (impl IDs like <code>downloader.native.torrent</code>) and dial <code>DownloaderServiceClient</code>.</p>
+<p>See <a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a> for a complete reference implementation — native torrent engine, <code>DownloaderService</code> adapter, and event emission.</p>
+<h3>Storage Provider Module</h3>
+<pre><code class="language-go">func (m *Module) Put(ctx context.Context, key string, data io.Reader, size int64) (int64, error) { ... }
+func (m *Module) Get(ctx context.Context, key string) (io.ReadCloser, error) { ... }
+func (m *Module) Stat(ctx context.Context, key string) (contracts.ObjectInfo, error) { ... }
+
+// Optional capability interfaces
+func (m *Module) Hardlink(ctx context.Context, src, dst string) error { ... }
+</code></pre>
+<p>A storage module registers with role <code>&quot;storage&quot;</code> and announces capabilities like <code>&quot;hardlinkable&quot;</code> and <code>&quot;streamable&quot;</code>. Other modules discover it via <code>FindByCapability(&quot;storage&quot;)</code> and use the <code>StorageService</code> gRPC.</p>
+<hr>
+<h2>Media Library Module (Admin UI Integration)</h2>
+<p>Media modules (movies, TV, books) can expose browsing, search, metadata editing, and artwork management to the admin UI by implementing the <code>MediaAdminService</code> gRPC service.</p>
+<h3>1. Import the contract</h3>
+<pre><code class="language-go">import (
+    mediaadminv1 &quot;github.com/Muxcore-Media/contracts-media-admin/gen/muxcore/media/admin/v1&quot;
+)
+</code></pre>
+<h3>2. Implement the gRPC server</h3>
+<pre><code class="language-go">type mediaAdminServer struct {
+    mediaadminv1.UnimplementedMediaAdminServer
+    // Your media module state
+}
+
+func (s *mediaAdminServer) GetMediaTypeInfo(ctx context.Context, req *mediaadminv1.GetMediaTypeInfoRequest) (*mediaadminv1.GetMediaTypeInfoResponse, error) {
+    return &amp;mediaadminv1.GetMediaTypeInfoResponse{
+        DisplayName: &quot;Movies&quot;,    // Shows as nav tab label
+        FilterFields: []*mediaadminv1.FilterField{
+            {Key: &quot;year&quot;, Label: &quot;Year&quot;, Type: &quot;number&quot;},
+            {Key: &quot;genre&quot;, Label: &quot;Genre&quot;, Type: &quot;select&quot;, Options: []string{&quot;Action&quot;, &quot;Comedy&quot;, &quot;Drama&quot;}},
+        },
+    }, nil
+}
+
+func (s *mediaAdminServer) ListItems(ctx context.Context, req *mediaadminv1.ListItemsRequest) (*mediaadminv1.ListItemsResponse, error) {
+    // Query your database (via DatabaseProvider) and return items
+    items := []*mediaadminv1.MediaItem{
+        {
+            Id: &quot;123&quot;, Title: &quot;The Terminator&quot;, Year: 1984,
+            Genres: []string{&quot;Action&quot;, &quot;Sci-Fi&quot;},
+            Metadata: map[string]string{&quot;director&quot;: &quot;James Cameron&quot;, &quot;runtime&quot;: &quot;108&quot;},
+        },
+    }
+    return &amp;mediaadminv1.ListItemsResponse{Items: items, Total: 1, Page: 1}, nil
+}
+
+func (s *mediaAdminServer) GetItem(ctx context.Context, req *mediaadminv1.GetItemRequest) (*mediaadminv1.GetItemResponse, error) {
+    // Return single item with full detail
+}
+
+func (s *mediaAdminServer) UpdateMetadata(ctx context.Context, req *mediaadminv1.UpdateMetadataRequest) (*mediaadminv1.UpdateMetadataResponse, error) {
+    // Update item metadata in your database
+}
+
+func (s *mediaAdminServer) ListArtwork(ctx context.Context, req *mediaadminv1.ListArtworkRequest) (*mediaadminv1.ListArtworkResponse, error) {
+    // Return artwork URLs for the item
+}
+
+func (s *mediaAdminServer) ReplaceArtwork(stream mediaadminv1.MediaAdminService_ReplaceArtworkServer) error {
+    // Receive artwork image chunks and store
+}
+</code></pre>
+<h3>3. Register the gRPC server alongside your module&#39;s other services</h3>
+<pre><code class="language-go">grpcSrv := grpc.NewServer()
+mediaadminv1.RegisterMediaAdminServiceServer(grpcSrv, &amp;mediaAdminServer{})
+// Also register any other services your module provides
+</code></pre>
+<h3>4. Register with the <code>&quot;media.library&quot;</code> capability</h3>
+<pre><code class="language-go">info := contracts.ModuleInfo{
+    ID:           &quot;media-movies&quot;,
+    Name:         &quot;Movies&quot;,
+    Description:  &quot;Movie library management&quot;,
+    Roles:        []string{&quot;media_manager&quot;},
+    Capabilities: []string{&quot;media.library&quot;},
+    HttpAddr:     &quot;:9410&quot;,    // gRPC port MediaAdminService listens on
+}
+</code></pre>
+<h3>5. Data model</h3>
+<p>Use the central <code>DatabaseProvider</code> for persistence. Each media module runs its own migrations (<code>Migrate()</code>) to create its tables within the shared database. The <code>metadata map&lt;string,string&gt;</code> field on <code>MediaItem</code> carries type-specific fields (runtime for movies, episode count for TV, page count for books) — this is the Meta pattern. The admin UI renders them generically.</p>
+<hr>
+<h2>Testing Your Module</h2>
+<p>Unit tests mock the external services (HTTP servers, gRPC backends). Integration tests need a running <code>muxcored</code> instance.</p>
+<h3>Unit Tests (Mock HTTP Server)</h3>
+<pre><code class="language-go">func TestMyClient(t *testing.T) {
+    srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Return expected API responses
+    }))
+    defer srv.Close()
+
+    client := NewClient(srv.URL, &quot;user&quot;, &quot;pass&quot;, 5*time.Second)
+    ctx := context.Background()
+    client.Login(ctx)
+    // ... assertions
+}
+</code></pre>
+<h3>Integration Tests (Real Core)</h3>
+<pre><code class="language-bash"># Start core in insecure dev mode
+MUXCORE_INSECURE_DISABLE_TLS=true muxcored &amp;
+
+# Build and run module
+go build -o my-module ./cmd/module
+./my-module --muxcore-mesh-addr localhost:9090 --muxcore-module-id my-module
+</code></pre>
+<h3>Docker Integration Testing</h3>
+<pre><code class="language-yaml"># docker-compose.test.yml
+services:
+  muxcored:
+    image: muxcore-media/core:latest
+    environment:
+      - MUXCORE_INSECURE_DISABLE_TLS=true
+    ports: [&quot;8080:8080&quot;, &quot;9090:9090&quot;]
+</code></pre>
+<hr>
+<h2>Module Checklist</h2>
+<p>Before publishing:</p>
+<ul>
+<li><input disabled="" type="checkbox"> <code>go.mod</code> depends on <code>github.com/Muxcore-Media/core</code> plus domain contract repos</li>
+<li><input disabled="" type="checkbox"> Sidecar entry point at <code>cmd/module/main.go</code></li>
+<li><input disabled="" type="checkbox"> Accepts <code>--muxcore-mesh-addr</code>, <code>--muxcore-module-id</code>, <code>--muxcore-tls-cert</code>, and <code>--muxcore-tls-key</code> flags</li>
+<li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Register()</code> at startup with structured <code>ModuleInfo</code></li>
+<li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Unregister()</code> at shutdown</li>
+<li><input disabled="" type="checkbox"> Handles SIGTERM/SIGINT for graceful shutdown</li>
+<li><input disabled="" type="checkbox"> Implements <code>contracts.Module</code> (Info, Init, Start, Stop, Health)</li>
+<li><input disabled="" type="checkbox"> Implements domain contracts from appropriate <code>contracts-*</code> repos</li>
+<li><input disabled="" type="checkbox"> <code>Contracts</code> declared in <code>Info().Contracts</code></li>
+<li><input disabled="" type="checkbox"> <code>muxcore.json</code> at repo root with <code>contracts</code> and <code>capabilities</code></li>
+<li><input disabled="" type="checkbox"> All external services discovered via <code>DiscoveryService.FindByCapability()</code>, never assumed</li>
+<li><input disabled="" type="checkbox"> Works gracefully when services are unavailable (degraded state)</li>
+<li><input disabled="" type="checkbox"> <code>Meta</code> used for module-specific data instead of assuming core changes</li>
+</ul>
+<hr>
+<h2>Next Steps</h2>
+<ul>
+<li><a href="Contracts.html">Contracts Reference</a> — every interface in detail</li>
+<li><a href="Module-System.html">Module System</a> — all module types and discovery</li>
+<li><a href="Event-System.html">Event System</a> — how modules communicate through events</li>
+<li><a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a> — complete reference implementation</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>

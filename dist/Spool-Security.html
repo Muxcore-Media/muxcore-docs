@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spool Security · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html" class="active">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Spool Security</h1>
+<p><strong>Spools are the source of truth for which modules run on your system.</strong> This page explains the security model and what you need to know before using a spool.</p>
+<hr>
+<h2>The Official Spool</h2>
+<pre><code>https://github.com/Muxcore-Media/spool
+</code></pre>
+<p>The official MuxCore spool is maintained by the MuxCore team. All modules it lists are under the <code>Muxcore-Media</code> GitHub organization. When you run:</p>
+<pre><code class="language-bash">muxcored --tag default
+</code></pre>
+<p>you are loading the <code>default</code> tag from the official spool. Core fetches the tag definition, resolves the listed modules, and launches them.</p>
+<hr>
+<h2>Third-Party Spools</h2>
+<p>You can point MuxCore at any spool:</p>
+<pre><code class="language-bash">muxcored --tag my-setup --spool https://github.com/some-user/custom-spool
+</code></pre>
+<p><strong>This is a trust decision.</strong> A third-party spool can:</p>
+<ul>
+<li>List modules that contain malicious code</li>
+<li>Point to forks with backdoors or data exfiltration</li>
+<li>Omit security-critical modules (e.g., auth, rate limiting) and replace them with stubs</li>
+<li>Specify outdated versions with known vulnerabilities</li>
+<li>Change its module list at any time — the tag you fetched yesterday might be different today</li>
+</ul>
+<p><strong>Modules run with the same OS privileges as the core process.</strong> A malicious module can access your filesystem, network, environment variables, and any data MuxCore manages.</p>
+<hr>
+<h2>Before Using a Third-Party Spool</h2>
+<ol>
+<li><strong>Audit the module list.</strong> Open the spool repo and read every <code>tags/&lt;name&gt;.json</code> file. Know exactly which modules will run.</li>
+<li><strong>Verify each module repo.</strong> Check that the repo URLs point to legitimate sources, not lookalike forks.</li>
+<li><strong>Check for security modules.</strong> Make sure the spool includes auth, rate limiting, and other security infrastructure — and that they point to real implementations, not stubs.</li>
+<li><strong>Pin to a specific version.</strong> Tags in the spool specify module versions. Use a tag that pins explicit versions, not one that floats on <code>latest</code>.</li>
+<li><strong>Test in isolation first.</strong> Run MuxCore in a container or VM with restricted access before deploying on production hardware.</li>
+</ol>
+<hr>
+<h2>How Core Protects You</h2>
+<p>When you use the <code>--tag</code> flag, MuxCore prints a security disclaimer to stderr before loading any modules. If you use a non-default spool (<code>--spool</code>), the disclaimer is displayed regardless.</p>
+<p>Core&#39;s built-in protections:</p>
+<ul>
+<li><strong>SSRF protection</strong> — the spool fetcher validates URL schemes (https only), blocks private/reserved IPs, enforces a 10-second timeout, and limits response body size to 1 MB.</li>
+<li><strong>Checksum verification</strong> — SHA-256 checksums specified in the spool tag are verified after module build. Required modules with mismatched checksums block startup. Optional modules are skipped with a warning.</li>
+<li><strong>Strict call policy</strong> — modules can only call other modules whose declared capabilities match the call target (enforced by the built-in <code>CallPolicyProvider</code>).</li>
+<li><strong>Strict publish policy</strong> — event publication is deny-by-default until a <code>PublishPolicyProvider</code> is registered (capability <code>&quot;publish.policy&quot;</code>). The reference module <code>publish-policy-default</code> loads YAML rules from <code>policies.yaml</code> (override with <code>PUBLISH_POLICY_FILE</code>); each rule matches a <code>caller</code> module ID against <code>event_types</code> globs.</li>
+</ul>
+<p>Core does not currently:</p>
+<ul>
+<li><strong>Cryptographically sign</strong> module binaries (e.g., Sigstore/cosign)</li>
+<li><strong>Sandbox</strong> module processes (they run with full user privileges)</li>
+<li><strong>Validate</strong> that spool module lists haven&#39;t changed since you last checked</li>
+</ul>
+<p>These are on the roadmap. For now, the security boundary is <strong>your diligence</strong>.</p>
+<hr>
+<h2>Creating Your Own Spool</h2>
+<p>Anyone can host a spool. See the <a href="https://github.com/Muxcore-Media/spool">official spool repo</a> for the format:</p>
+<pre><code>your-spool/
+├── catalog.json          # Module catalog
+├── tags/
+│   ├── default.json      # Tag definitions
+│   └── custom.json
+└── README.md
+</code></pre>
+<p>A spool can be any git repo with a <code>tags/</code> directory. GitHub repos work out of the box. Non-GitHub repos need to serve the <code>tags/</code> directory over HTTP.</p>
+<hr>
+<h2>Threat Model</h2>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Risk</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Malicious module in third-party spool</td>
+<td>High</td>
+<td>Audit spools before use</td>
+</tr>
+<tr>
+<td>Spool tag changed after review</td>
+<td>Medium</td>
+<td>Pin to a specific commit</td>
+</tr>
+<tr>
+<td>Module repo compromised</td>
+<td>High</td>
+<td>Checksum verification catches mismatches; binary signing planned</td>
+</tr>
+<tr>
+<td>Module escapes to host</td>
+<td>High</td>
+<td>Sandboxing (planned)</td>
+</tr>
+<tr>
+<td>Official spool compromised</td>
+<td>Low</td>
+<td>GitHub org security, 2FA required</td>
+</tr>
+</tbody></table>
+
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deployment · MuxCore Docs</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">MuxCore</a>
+      <p class="tag">Documentation</p>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="Core-Concepts.html">Core Concepts</a>
+        <a href="Getting-Started.html">Getting Started</a>
+        <a href="Configuration-Reference.html">Configuration Reference</a>
+        <a href="Port-Map.html">Port Map</a>
+        <a href="Architecture.html">Architecture</a>
+        <a href="Module-System.html">Module System</a>
+        <a href="Writing-Modules.html">Writing Modules</a>
+        <a href="Contracts.html">Contracts Reference</a>
+        <a href="Event-System.html">Event System</a>
+        <a href="Storage.html">Storage</a>
+        <a href="Workflow-Engine.html">Workflow Engine</a>
+        <a href="Deployment.html" class="active">Deployment</a>
+        <a href="Security.html">Security</a>
+        <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
+        <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
+        <a href="Spool-Security.html">Spool Security</a>
+        <a href="Admin-API.html">Admin API</a>
+        <a href="Tasks.html">Tasks</a>
+        <a href="Roadmap.html">Roadmap</a>
+        <a href="Contributing.html">Contributing</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Deployment</h1>
+<p><strong>Day one is one laptop.</strong> Prefer the <a href="Getting-Started.html">installer / release-binary path</a> over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.</p>
+<p>Active checklist: <a href="Tasks.html">Tasks</a> (workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>).</p>
+<hr>
+<h2>Day-1 preference</h2>
+<table>
+<thead>
+<tr>
+<th>Prefer</th>
+<th>Defer</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Installer or published release binaries</td>
+<td>Sibling monorepo builds</td>
+</tr>
+<tr>
+<td>Compose <strong>or</strong> host binaries on one machine</td>
+<td><code>muxcore-operator</code> / Helm as the first install</td>
+</tr>
+<tr>
+<td>Fixture acquisition (<code>DOWNLOADER_ENGINE=fixture</code>)</td>
+<td>Live pirate / swarm as a smoke gate</td>
+</tr>
+<tr>
+<td>Self-hosted CI + <strong>local</strong> image registry</td>
+<td>GitHub-hosted runners, paid Actions minutes, paid Packages billing</td>
+</tr>
+</tbody></table>
+<p><code>_mvp/</code> remains the developer reference lab. End users should never be told to clone sixty repos.</p>
+<hr>
+<h2>Phase 1: Single machine (supported first-run)</h2>
+<p>One host, one <code>muxcored</code>, modules as sidecars (spawned by core or started by the installer/compose file).</p>
+<pre><code>┌──────────────────────────┐
+│      Laptop / NAS         │
+│                           │
+│  ┌──────────────────────┐ │
+│  │  MuxCore (the loom)  │ │
+│  │  HTTP  → :8080       │ │
+│  │  gRPC  → :9090       │ │
+│  └──────────────────────┘ │
+│                           │
+│  Sidecars: auth, api-rest,│
+│  libraries, automation,   │
+│  fixture downloader, UIs  │
+└──────────────────────────┘
+</code></pre>
+<h3>What you get</h3>
+<ul>
+<li>In-memory event bus (no external broker required)</li>
+<li>Local filesystem library + downloads dirs</li>
+<li>SQLite (or equivalent) via <code>database-sqlite</code> for the default installer profile</li>
+<li>Admin UI + consumer UI URLs on localhost</li>
+<li>Offline demo via <a href="Getting-Started#fixture-first-acquisition">fixture-first acquisition</a></li>
+</ul>
+<h3>Start options</h3>
+<p><strong>Installer / release binaries</strong> — see <a href="Getting-Started.html">Getting Started</a>.</p>
+<p><strong>Compose</strong> (images from a <strong>local</strong> registry or pre-loaded tarballs):</p>
+<pre><code class="language-bash">docker compose up -d
+# bootstrap admin → open VIEW-ME.txt URLs
+</code></pre>
+<p><strong>Bare loom + tag</strong> (modules already on disk or resolved from spool):</p>
+<pre><code class="language-bash">muxcored --tag media --spool https://github.com/Muxcore-Media/spool
+</code></pre>
+<p>Configuration: <code>muxcore.json</code> and env — <a href="Configuration-Reference.html">Configuration Reference</a>, <a href="Getting-Started.html">Getting Started</a>.</p>
+<hr>
+<h2>Self-hosted CI and local registry (no billing narrative)</h2>
+<p>MuxCore packaging assumes a <strong>laptop or home lab</strong> plus a <strong>GitHub free</strong> org/account. Product and contributor docs must not depend on paid GitHub Actions minutes or paid package tiers.</p>
+<h3>CI</h3>
+<ul>
+<li>Module workflows use <code>runs-on: self-hosted</code> (org runners on your hardware).</li>
+<li>Merge gates: <code>go test ./...</code> (or language equivalent) on those runners.</li>
+<li>Do <strong>not</strong> treat GitHub-hosted runners as the default path for new repos.</li>
+<li>Offline / fixture / httptest tests only for acquisition — no live pirate APIs in CI.</li>
+</ul>
+<h3>Images and artifacts</h3>
+<ul>
+<li>Build images on the self-hosted runner: <code>docker build</code> (or Podman).</li>
+<li>Push to a <strong>local registry</strong> you run yourself, for example:</li>
+</ul>
+<pre><code class="language-bash"># Example local registry on the lab machine
+docker run -d -p 5000:5000 --name registry registry:2
+
+docker build -t localhost:5000/muxcore/core:v0.5.0 .
+docker push localhost:5000/muxcore/core:v0.5.0
+</code></pre>
+<ul>
+<li>Compose and installer pin matrices should reference those local tags (or Release binary tarballs), not “whatever latest is on a paid remote.”</li>
+<li>GitHub Releases (free) remain the distribution channel for <code>muxcored</code> and module binaries; image hosting for day-1 can stay entirely on-LAN.</li>
+<li>Avoid documenting paid GHCR package scopes or hosted-runner billing as requirements.</li>
+</ul>
+<h3>Release factory (summary)</h3>
+<p>Tracked in <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> §10: GoReleaser (or <code>make release</code>) on self-hosted runners for linux amd64/arm64, installer pin matrix, spool tags updated with the same pins. Until that factory is complete, <code>_mvp</code> host builds prove the path; installer consumes published assets.</p>
+<hr>
+<h2>Phase 2: Multiple machines</h2>
+<p>Add workers when you need distributed transcoding, extra storage, or failover. Still no requirement for cloud billing.</p>
+<pre><code>┌─────────────────────┐
+│   MuxCore Node 1    │  (primary — API, UI, event bus)
+│   - Core services   │
+│   - Database module │
+│   - Cache module    │
+└─────────┬───────────┘
+          │
+    ┌─────┴─────────────┐
+    │                   │
+┌───▼─────────┐  ┌──────▼────────┐
+│ Worker 1    │  │ Worker 2      │
+│ - Transcoder│  │ - Transcoder  │
+│ - Local SSD │  │ - Local SSD   │
+└─────────────┘  └───────────────┘
+</code></pre>
+<h3>Capabilities</h3>
+<ul>
+<li>Distributed transcoding to least-loaded workers</li>
+<li>Worker / module failover after heartbeat loss</li>
+<li>Shared task queue via cache module (local Redis/Valkey optional)</li>
+<li>Shared metadata via database module (Postgres optional profile)</li>
+</ul>
+<p>PostgreSQL and Redis are <strong>modules</strong>, not built into core. Laptop default remains SQLite + local cache; multi-node picks Postgres/Redis when you need them.</p>
+<pre><code class="language-yaml"># Illustrative — pull images from your local registry
+services:
+  muxcore:
+    image: localhost:5000/muxcore/core:v0.5.0
+    environment:
+      - MUXCORE_DATABASE_DRIVER=postgres
+      - MUXCORE_DATABASE_URL=postgres://...
+      - MUXCORE_CACHE_DRIVER=redis
+      - MUXCORE_CACHE_URL=redis://...
+
+  postgres:
+    image: postgres:16
+
+  redis:
+    image: redis:7
+</code></pre>
+<hr>
+<h2>Phase 3: Kubernetes (later)</h2>
+<p>Full orchestration (HA cores, GPU pools, Rook/Ceph or MinIO) is optional and <strong>not</strong> day-1. Prefer installer/compose until you need it. Operator/Helm work is tracked under <a href="Tasks.html">Tasks</a>; samples should use <strong>local</strong> images only (kind/k3d + <code>localhost:5000</code>), not paid cloud registries as a hard dependency.</p>
+<hr>
+<h2>Clustering: auto-join</h2>
+<h3>On the new node</h3>
+<pre><code class="language-json">{
+  &quot;grpc&quot;: {
+    &quot;addr&quot;: &quot;:9090&quot;,
+    &quot;seed_nodes&quot;: [&quot;primary-node:9090&quot;],
+    &quot;join_token&quot;: &quot;my-secret-cluster-token&quot;
+  }
+}
+</code></pre>
+<p>Or:</p>
+<pre><code class="language-bash">export MUXCORE_GRPC_SEED_NODES=&quot;primary-node:9090,backup-node:9090&quot;
+export MUXCORE_CLUSTER_JOIN_TOKEN=&quot;my-secret-cluster-token&quot;
+</code></pre>
+<h3>What happens</h3>
+<ol>
+<li>New node contacts seed nodes and presents the join token.</li>
+<li>Receives member list + leader ID and registers.</li>
+<li>Heartbeats every ~10s advertise that node’s module list.</li>
+<li>Eviction after ~30s without heartbeats; modules rediscover via <code>DiscoveryService.Members()</code> and re-register.</li>
+</ol>
+<hr>
+<h2>mTLS and certificates</h2>
+<p>In production, enable mutual TLS; core can act as an internal CA under <code>~/.muxcore/ca/</code> (or <code>MUXCORE_GRPC_CA_CERT_DIR</code>). Laptop first-run may use <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> — never carry that into a shared or internet-facing deploy.</p>
+<pre><code class="language-bash">export MUXCORE_GRPC_MTLS_ENABLED=true
+export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
+</code></pre>
+<p>See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> and <a href="Security.html">Security</a>.</p>
+<hr>
+<h2>Module deployment (multi-machine)</h2>
+<p>Sidecars connect to the nearest mesh:</p>
+<pre><code class="language-yaml">services:
+  muxcore:
+    image: localhost:5000/muxcore/core:v0.5.0
+
+  downloader-native-torrent:
+    image: localhost:5000/muxcore/downloader-native-torrent:v0.2.1
+    environment:
+      - DOWNLOADER_ENGINE=fixture   # keep fixture until you intentionally opt into live
+    command:
+      - --muxcore-mesh-addr=muxcore:9090
+      - --muxcore-module-id=downloader-native-torrent
+</code></pre>
+<hr>
+<h2>Environments (guidance)</h2>
+<table>
+<thead>
+<tr>
+<th>Environment</th>
+<th>Start here</th>
+<th>Grow to</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Laptop / home lab</td>
+<td>Phase 1 installer or compose</td>
+<td>Phase 2 workers; optional local k3s</td>
+</tr>
+<tr>
+<td>Seedbox</td>
+<td>Phase 1 host binaries + modules</td>
+<td>Phase 2 if multi-box</td>
+</tr>
+<tr>
+<td>Enterprise / provider</td>
+<td>Phase 2+ with mTLS</td>
+<td>Phase 3 when ops requires it</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Observability</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Baseline</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Phase 1</strong></td>
+<td>Structured logs, <code>/health</code>, health-monitor, admin events</td>
+</tr>
+<tr>
+<td><strong>Phase 2</strong></td>
+<td>Optional Prometheus / Grafana (compose profile), audit JSONL</td>
+</tr>
+<tr>
+<td><strong>Phase 3</strong></td>
+<td>Distributed tracing (local Jaeger/OTLP collector)</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Next steps</h2>
+<ul>
+<li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>
+<li><a href="Security.html">Security</a> — TLS, mTLS, join tokens</li>
+<li><a href="Core-Concepts.html">Core Concepts</a> — cross-node tracking and failover</li>
+<li><a href="Tasks.html">Tasks</a> — packaging, gates, and what is explicitly out of scope</li>
+</ul>
+
+    </main>
+  </div>
+</body>
+</html>
