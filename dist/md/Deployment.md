@@ -98,7 +98,16 @@ docker push localhost:5000/muxcore/core:v0.5.0
 
 ### Release factory (summary)
 
-Tracked in [`TASKS.md`](../TASKS.md) §10: GoReleaser (or `make release`) on self-hosted runners for linux amd64/arm64, installer pin matrix, spool tags updated with the same pins. Until that factory is complete, `_mvp` host builds prove the path; installer consumes published assets.
+Self-hosted release factory (TASKS §10):
+
+| Surface | Config | Workflow | Artifacts |
+|---------|--------|----------|-----------|
+| `muxcored` (`core`) | [`.goreleaser.yaml`](https://github.com/Muxcore-Media/core/blob/main/.goreleaser.yaml) | tag `release.yml` on self-hosted | linux/darwin × amd64/arm64 tarballs (+ checksums; optional cosign/SBOM) |
+| `muxcorectl` (`muxcorectl-cli`) | [`.goreleaser.yaml`](https://github.com/Muxcore-Media/muxcorectl-cli/blob/main/.goreleaser.yaml) | same pattern | linux/darwin × amd64/arm64 tarballs |
+| Active Go modules | tag `release.yml` (job often named `goreleaser`) | self-hosted preferred | `go build` linux amd64+arm64 → GitHub Release assets (installer pin matrix) |
+
+Local preview without publishing: `make release-snapshot` in `core` or `muxcorectl-cli` (requires GoReleaser CLI). Installer pins: see installer `PIN-MATRIX.md`.
+
 
 ---
 
