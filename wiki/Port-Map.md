@@ -47,7 +47,7 @@ These are started by `muxcore-installer/up.sh` (fixture-only product path). `_mv
 | `secrets-file` | gRPC | **9550** | `:9550` | `SECRETS_GRPC_ADDR` | |
 | `encryption-aesgcm` | gRPC | **9601** | `:9601` | `ENCRYPTION_GRPC_ADDR` | |
 | `call-policy-default` | gRPC | **9101** | `:9101` | `CALL_POLICY_GRPC_ADDR` | |
-| `publish-policy-default` | gRPC | **9102** | `:9102` | `PUBLISH_POLICY_GRPC_ADDR` | |
+| `publish-policy-default` | gRPC | **9102** | `:9102` | — (binary default; no env override) | |
 | `health-monitor` | gRPC | **9202** | `:9202` | `HEALTH_MONITOR_GRPC_ADDR` | |
 | `health-monitor` | HTTP | **9203** | `:9203` | `HEALTH_MONITOR_HTTP_ADDR` | `/status` aggregate |
 | `admin-ui` | HTTP | **8082** | `:8080` | `ADMIN_UI_ADDR` | **Remapped** off core/api-rest `:8080`. In auth-local redirect allowlist. |
@@ -83,6 +83,8 @@ Not started by the installer fixture path. `_mvp` starts `indexer-piratebay` onl
 | `indexer-piratebay` | gRPC | **9485** | `PIRATEBAY_GRPC_ADDR` | **Remapped** from `:9480` (ffprobe) |
 | `indexer-torznab` | gRPC | **9486** | `TORZNAB_GRPC_ADDR` | Adjacent to piratebay |
 | `media-ffprobe` | gRPC | **9480** | `FFPROBE_GRPC_ADDR` | Keeps `:9480`; do not put piratebay here |
+| `media-custom-formats` | gRPC | **9490** | `FORMATS_GRPC_ADDR` | Scoring peer; adjacent to ffprobe/indexers |
+| `media-rename` | gRPC | **9500** | `RENAME_GRPC_ADDR` | Renamer peer; below roots `:9540` |
 | `notification-apprise` | gRPC | **9445** | `NOTIFY_GRPC_ADDR` | Alternate notifier; not co-started with default on same addr |
 
 ---

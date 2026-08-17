@@ -14,6 +14,25 @@ You need:
 
 ---
 
+## Fast path: `muxcore-module-starter`
+
+Prefer the official starter over hand-rolling `go mod init`:
+
+```bash
+git clone https://github.com/Muxcore-Media/muxcore-module-starter.git
+cd muxcore-module-starter
+make new-module NAME=my-module
+# optional: OUT=/path/to/my-module
+cd ../my-module
+make build && make test
+```
+
+That generates a sidecar layout, `muxcore.json`, Makefile, and **self-hosted CI** that pins published `core@v0.5.0` (private fetch via `MUXCORE_CI_TOKEN` — no sibling `core` checkout). Details: [muxcore-module-starter](https://github.com/Muxcore-Media/muxcore-module-starter).
+
+You can still scaffold manually with the steps below if you need a custom layout.
+
+---
+
 ## Module Architecture
 
 Every module is a **standalone binary** — not compiled into core. Core spawns it as a child process; the module connects to the gRPC mesh and registers at runtime.
@@ -40,7 +59,7 @@ Reference implementation: [downloader-native-torrent](https://github.com/Muxcore
 ```bash
 mkdir my-module && cd my-module
 go mod init github.com/yourname/my-module
-go get github.com/Muxcore-Media/core
+go get github.com/Muxcore-Media/core@v0.5.0
 go get github.com/Muxcore-Media/contracts-downloader  # if building a downloader
 ```
 
