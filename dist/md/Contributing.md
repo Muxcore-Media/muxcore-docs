@@ -144,7 +144,6 @@ Wiki changes are pushed directly to the wiki repo's `master` branch.
 
 ---
 
-
 ## Security
 
 - **Vulnerability reporting:** See [SECURITY.md](https://github.com/Muxcore-Media/core/blob/master/SECURITY.md)
