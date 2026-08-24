@@ -85,12 +85,19 @@ MuxCore packaging assumes a **laptop or home lab** plus **Forgejo origin** on va
 - Push to a **local registry** you run yourself, for example:
 
 ```bash
-# Example local registry on the lab machine
-docker run -d -p 5000:5000 --name registry registry:2
+# Helper (preferred on the laptop lab)
+cd _mvp
+./local-registry.sh start
+./local-registry.sh push v0.5.0   # builds core/Dockerfile → localhost:5000/muxcore/muxcored:v0.5.0
 
-docker build -t localhost:5000/muxcore/core:v0.5.0 .
-docker push localhost:5000/muxcore/core:v0.5.0
+# Or manually (docker|podman as $RUNTIME)
+$RUNTIME run -d -p 5000:5000 --name muxcore-local-registry registry:2
+cd ../core
+$RUNTIME build --build-arg VERSION=v0.5.0 -t localhost:5000/muxcore/muxcored:v0.5.0 .
+$RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
 ```
+
+If neither Docker nor Podman is installed, `./local-registry.sh` exits non-zero with install instructions — it does **not** claim a successful push.
 
 - Compose and installer pin matrices should reference those local tags (or Release binary tarballs), not “whatever latest is on a paid remote.”
 - GitHub Releases (free) remain the distribution channel for `muxcored` and module binaries; image hosting for day-1 can stay entirely on-LAN.
@@ -102,11 +109,11 @@ Self-hosted release factory (TASKS §10):
 
 | Surface | Config | Workflow | Artifacts |
 |---------|--------|----------|-----------|
-| `muxcored` (`core`) | [`.goreleaser.yaml`](https://github.com/Muxcore-Media/core/blob/main/.goreleaser.yaml) | tag `release.yml` on self-hosted | linux/darwin × amd64/arm64 tarballs (+ checksums; optional cosign/SBOM) |
-| `muxcorectl` (`muxcorectl-cli`) | [`.goreleaser.yaml`](https://github.com/Muxcore-Media/muxcorectl-cli/blob/main/.goreleaser.yaml) | same pattern | linux/darwin × amd64/arm64 tarballs |
+| `muxcored` (`core`) | [`.goreleaser.yaml`](../core/.goreleaser.yaml) | [`release.yml`](../core/.github/workflows/release.yml) (`runs-on: self-hosted`) | linux/darwin × amd64/arm64 tarballs (+ checksums; optional cosign/SBOM) |
+| `muxcorectl` (`muxcorectl-cli`) | [`.goreleaser.yaml`](../muxcorectl-cli/.goreleaser.yaml) | same pattern | linux/darwin × amd64/arm64 tarballs |
 | Active Go modules | tag `release.yml` (job often named `goreleaser`) | self-hosted preferred | `go build` linux amd64+arm64 → GitHub Release assets (installer pin matrix) |
 
-Local preview without publishing: `make release-snapshot` in `core` or `muxcorectl-cli` (requires GoReleaser CLI). Installer pins: see installer `PIN-MATRIX.md`.
+Local preview without publishing: `make release-snapshot` in `core` or `muxcorectl-cli` (requires GoReleaser CLI). Installer pins: [`muxcore-installer/PIN-MATRIX.md`](../muxcore-installer/PIN-MATRIX.md).
 
 
 ---
@@ -145,7 +152,7 @@ PostgreSQL and Redis are **modules**, not built into core. Laptop default remain
 # Illustrative — pull images from your local registry
 services:
   muxcore:
-    image: localhost:5000/muxcore/core:v0.5.0
+    image: localhost:5000/muxcore/muxcored:v0.5.0
     environment:
       - MUXCORE_DATABASE_DRIVER=postgres
       - MUXCORE_DATABASE_URL=postgres://...
@@ -190,10 +197,10 @@ export MUXCORE_CLUSTER_JOIN_TOKEN="my-secret-cluster-token"
 
 ### What happens
 
-1. New node contacts seed nodes and presents the join token.
+1. New node dials seed nodes over TLS and calls `Join` (auto-join does **not** currently attach `x-cluster-join-token` metadata — set `join_token` for the seed’s expected auth story, but verify the client path before relying on token enforcement).
 2. Receives member list + leader ID and registers.
 3. Heartbeats every ~10s advertise that node’s module list.
-4. Eviction after ~30s without heartbeats; modules rediscover via `DiscoveryService.Members()` and re-register.
+4. Eviction after ~30s without heartbeats; the **leader** may resurrect orphaned tag modules (`ResurrectOrphan`). Modules do **not** self-reconnect by querying `DiscoveryService.Members()`. Departed-node worker tasks are released to Pending for redispatch via `FailNodeTasks` (failed only after `MaxRetries` when set). Auto-join attaches `x-cluster-join-token` when `grpc.join_token` is configured; `Join` and `Heartbeat` are on the mesh public allowlist (token is the Join auth).
 
 ---
 
@@ -217,7 +224,7 @@ Sidecars connect to the nearest mesh:
 ```yaml
 services:
   muxcore:
-    image: localhost:5000/muxcore/core:v0.5.0
+    image: localhost:5000/muxcore/muxcored:v0.5.0
 
   downloader-native-torrent:
     image: localhost:5000/muxcore/downloader-native-torrent:v0.2.1
@@ -249,6 +256,16 @@ services:
 | **Phase 3** | Distributed tracing (local Jaeger/OTLP collector) |
 
 ---
+
+## Staging profile (operator MVP)
+
+The operator host documents a **staging** profile that boots with mTLS and **without** `MUXCORE_INSECURE_DISABLE_TLS`:
+
+- Config: [`_mvp/muxcore.staging.json`](../_mvp/muxcore.staging.json) (`mtls_enabled: true`)
+- Runner: [`_mvp/run-host-staging.sh`](../_mvp/run-host-staging.sh)
+- Checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md)
+
+Public browser auth should use a TLS-terminated hostname (e.g. `https://auth.gringotts`); internal module HTTP for token/code exchange stays on loopback (e.g. `http://127.0.0.1:9401`). Details: [Security](Security#operator-host-notes-tls--auth-urls).
 
 ## Next steps
 

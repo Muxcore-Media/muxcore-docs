@@ -28,7 +28,7 @@ Each step is handled by a different module. The workflow engine orchestrates —
 
 ## A Real Example
 
-Here's a tapestry for importing a movie:
+Here's the seeded `movie-request` tapestry (JSON in `workflow-tapestry`; YAML below is equivalent):
 
 ```yaml
 id: movie-request
@@ -39,30 +39,30 @@ steps:
       kind: module
       ref: metadata-tmdb
     retry: 3
-    timeout: 30
+    timeout_seconds: 30
 
   - name: indexer-search
     handler:
       kind: capability
       ref: indexer
     retry: 2
-    timeout: 60
+    timeout_seconds: 60
     depends_on: [metadata-lookup]
 
   - name: download
     handler:
-      kind: module
-      ref: downloader-native-torrent
+      kind: capability
+      ref: downloader
     retry: 1
-    timeout: 0       # no timeout — downloads can take hours
+    timeout_seconds: 0       # no timeout — downloads can take hours
     depends_on: [indexer-search]
 
   - name: library-import
     handler:
       kind: module
-      ref: media-movies
+      ref: media-scanner
     retry: 1
-    timeout: 60
+    timeout_seconds: 60
     depends_on: [download]
 
   - name: notify
@@ -70,7 +70,7 @@ steps:
       kind: capability
       ref: notification
     retry: 2
-    timeout: 10
+    timeout_seconds: 10
     depends_on: [library-import]
 ```
 

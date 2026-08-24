@@ -50,7 +50,7 @@ MuxCore replaces the separate programs with a **single platform** where everythi
 
 Instead of six programs that barely know about each other, you have one platform where every module can see what every other module is doing. A download finishes → the media manager imports it → the transcoder optimizes it → notification goes out. All without hardcoded paths or fragile integrations.
 
-> **⚠️ Beta software notice:** MuxCore is pre-1.0 beta software under active development. Core ships a built-in WorkerPool (`core.workerpool`). When a node dies, the **leader** can resurrect orphaned modules from the spool tag cache (`ResurrectOrphan`). **Task redistribution** returns departed-node worker tasks to Pending for redispatch (up to `MaxRetries`); exhausted retries are marked failed.
+> **⚠️ Beta software notice:** MuxCore is pre-1.0 beta software under active development. Core ships a built-in WorkerPool (`core.workerpool`). When a node dies, the **leader** can resurrect orphaned modules from the spool tag cache (`ResurrectOrphan`). **Departed-node worker tasks** are released to Pending via `FailNodeTasks` for redispatch (failed only after `MaxRetries` when set).
 
 ---
 
@@ -216,7 +216,7 @@ Module-to-module calls are protected by policy — modules declare who they are,
 
 ## Cross-Node Module Tracking
 
-> **⚠️ Beta status:** Heartbeat-based module tracking is implemented. On node loss, the **leader** may resurrect orphaned tag modules on a surviving node. Modules do not self-reconnect by querying `Members()`. Departed-node worker tasks are released for redispatch (retry-capped).
+> **⚠️ Beta status:** Heartbeat-based module tracking is implemented. On node loss, the **leader** may resurrect orphaned tag modules on a surviving node. Modules do not self-reconnect by querying `Members()`. Departed-node worker tasks are released for redispatch (retry-capped via `FailNodeTasks`).
 
 When MuxCore runs as a cluster (multiple core instances across machines), every node tracks which modules are running where. This is what makes the mesh routing work.
 
@@ -247,7 +247,7 @@ When a node leaves the cluster:
 4. The surviving node's next heartbeat advertises the resurrected module IDs.
 5. Mesh callers keep using the same module ID — they do not need to know a resurrection occurred.
 
-Limits: only tag-deployed modules with a usable binary in the tag cache are resurrected. In-flight worker tasks on the departed node are released back to Pending for redispatch (failed only after `MaxRetries` is exceeded).
+Limits: only tag-deployed modules with a usable binary in the tag cache are resurrected. In-flight worker tasks on the departed node are released back to Pending for redispatch via `FailNodeTasks` (failed only after `MaxRetries` is exceeded when set).
 
 ### Cluster Events
 
@@ -257,8 +257,9 @@ Any module can subscribe to cluster membership changes via `DiscoveryService.Wat
 |-------|------|
 | `TYPE_NODE_JOINED` | A new core instance joins the cluster |
 | `TYPE_NODE_LEFT` | A core instance is evicted (dead) or gracefully leaves |
-| `TYPE_NODE_DEGRADED` | A node reports reduced capability |
 | `TYPE_LEADER_CHANGED` | Cluster leader election produces a new leader |
+
+`TYPE_NODE_DEGRADED` is reserved on the Go cluster adapter poll path; it is **not** emitted on `DiscoveryService.Watch()` today.
 
 ---
 

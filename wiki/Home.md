@@ -18,7 +18,7 @@ You already know the *arr stack: Sonarr for TV, Radarr for movies, Lidarr for mu
 | Hardcoded workflows (search → download → import) | Configurable workflows you define |
 | One machine, one ceiling | Add machines, split the load |
 | 1080p and 4K need two Sonarr instances | One library, any number of qualities |
-| If a node goes down, nothing takes over | Leader can resurrect orphaned tag modules; worker tasks on the departed node are released for redispatch (retry-capped) |
+| If a node goes down, nothing takes over | Leader can resurrect orphaned tag modules; worker tasks on the departed node are released for redispatch (retry-capped via `FailNodeTasks`) |
 | Storage must be local or NFS-mounted | Storage is provider-routed (local today; S3/cloud via modules when available) |
 
 ## How It Works (In Plain English)

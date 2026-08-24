@@ -166,6 +166,7 @@ func main() {
     moduleID := flag.String("muxcore-module-id", "my-module", "Module identifier")
     tlsCert := flag.String("muxcore-tls-cert", "", "Path to TLS client certificate (auto-provided by core)")
     tlsKey := flag.String("muxcore-tls-key", "", "Path to TLS client private key (auto-provided by core)")
+    tlsCA := flag.String("muxcore-tls-ca", "", "Path to CA certificate (MUXCORE_TLS_CA)")
     flag.Parse()
 
     // Connect to core mesh with retry
@@ -232,7 +233,7 @@ func main() {
 Every sidecar binary must:
 - Accept `--muxcore-mesh-addr` (default: `localhost:9090`)
 - Accept `--muxcore-module-id` (its identifier)
-- Accept `--muxcore-tls-cert` and `--muxcore-tls-key` (auto-provided by core when spawned via `--tag`)
+- Accept `--muxcore-tls-cert`, `--muxcore-tls-key`, and `--muxcore-tls-ca` (auto-provided by core when spawned via `--tag`; prefer `modulesdk.Run`)
 - Connect to the gRPC mesh
 - Call `ModuleRegistration.Register()` with structured `ModuleInfo`
 - Respond to SIGTERM/SIGINT for graceful shutdown
@@ -242,12 +243,14 @@ Every sidecar binary must:
 
 ## External Modules (Bootstrap Tokens)
 
-If your module runs **outside** core's sidecar manager (separate container, different machine), you cannot rely on auto-issued TLS certificates. Instead, use the `BootstrapRegister` RPC with a one-time token:
+If your module runs **outside** core's sidecar manager (separate container, different machine), you cannot rely on auto-issued TLS certificates. The designed path is `BootstrapRegister` with a one-time token:
 
 1. Generate a bootstrap token for your module on the core node
 2. Pass the token to your module (via env var, config file, or CLI flag)
 3. Your module calls `BootstrapRegister` to receive a signed certificate
 4. Your module reconnects with mTLS using the received credentials
+
+> **Note:** `BootstrapRegister` is on the mesh public allowlist; the one-time bootstrap token is the authentication. Prefer core-spawned sidecars when possible. Details: [Module TLS Authentication](Module-TLS-Authentication).
 
 ```go
 regClient := modulev1.NewModuleRegistrationClient(conn)
@@ -436,7 +439,7 @@ import (
 
 ```go
 type mediaAdminServer struct {
-    mediaadminv1.UnimplementedMediaAdminServer
+    mediaadminv1.UnimplementedMediaAdminServiceServer
     // Your media module state
 }
 
@@ -496,7 +499,7 @@ info := contracts.ModuleInfo{
     Description:  "Movie library management",
     Roles:        []string{"media_manager"},
     Capabilities: []string{"media.library"},
-    HttpAddr:     ":9410",    // gRPC port MediaAdminService listens on
+    HttpAddr:     ":9430",    // media-movies HTTP helper port (gRPC is :9420 — see Port-Map)
 }
 ```
 
@@ -557,7 +560,7 @@ Before publishing:
 
 - [ ] `go.mod` depends on `github.com/Muxcore-Media/core` plus domain contract repos
 - [ ] Sidecar entry point at `cmd/module/main.go`
-- [ ] Accepts `--muxcore-mesh-addr`, `--muxcore-module-id`, `--muxcore-tls-cert`, and `--muxcore-tls-key` flags
+- [ ] Accepts `--muxcore-mesh-addr`, `--muxcore-module-id`, `--muxcore-tls-cert`, `--muxcore-tls-key`, and `--muxcore-tls-ca` flags
 - [ ] Calls `ModuleRegistration.Register()` at startup with structured `ModuleInfo`
 - [ ] Calls `ModuleRegistration.Unregister()` at shutdown
 - [ ] Handles SIGTERM/SIGINT for graceful shutdown

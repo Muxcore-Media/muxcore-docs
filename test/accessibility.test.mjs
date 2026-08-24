@@ -27,7 +27,20 @@ const SECOND_WAVE_PAGES = [
   "Event-System.html",
 ];
 
-const AUDITED_PAGES = [...FIRST_WAVE_PAGES, ...SECOND_WAVE_PAGES];
+/** Third-wave pages: storage, workflows, deployment, and security docs. */
+const THIRD_WAVE_PAGES = [
+  "Storage.html",
+  "Workflow-Engine.html",
+  "Deployment.html",
+  "Security.html",
+  "Module-TLS-Authentication.html",
+];
+
+const AUDITED_PAGES = [
+  ...FIRST_WAVE_PAGES,
+  ...SECOND_WAVE_PAGES,
+  ...THIRD_WAVE_PAGES,
+];
 
 /** Pages that ship data tables in main content. */
 const PAGES_WITH_TABLES = new Set([
@@ -37,6 +50,11 @@ const PAGES_WITH_TABLES = new Set([
   "Event-System.html",
   "Configuration-Reference.html",
   "Port-Map.html",
+  "Storage.html",
+  "Workflow-Engine.html",
+  "Deployment.html",
+  "Security.html",
+  "Module-TLS-Authentication.html",
 ]);
 
 function loadPage(file) {
