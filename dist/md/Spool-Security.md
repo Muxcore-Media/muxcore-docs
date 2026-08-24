@@ -13,7 +13,7 @@ https://github.com/Muxcore-Media/spool
 The official MuxCore spool is maintained by the MuxCore team. All modules it lists are under the `Muxcore-Media` GitHub organization. When you run:
 
 ```bash
-muxcored --tag default
+muxcored --tag media
 ```
 
 you are loading the `default` tag from the official spool. Core fetches the tag definition, resolves the listed modules, and launches them.
@@ -58,7 +58,7 @@ Core's built-in protections:
 
 - **SSRF protection** — the spool fetcher validates URL schemes (https only), blocks private/reserved IPs, enforces a 10-second timeout, and limits response body size to 1 MB.
 - **Checksum verification** — SHA-256 checksums specified in the spool tag are verified after module build. Required modules with mismatched checksums block startup. Optional modules are skipped with a warning.
-- **Strict call policy** — modules can only call other modules whose declared capabilities match the call target (enforced by the built-in `CallPolicyProvider`).
+- **Strict call policy** — modules can only call other modules whose declared capabilities match the call target (enforced by a `CallPolicyProvider` module such as `call-policy-default`; core denies calls until a `call.policy` module is wired).
 - **Strict publish policy** — event publication is deny-by-default until a `PublishPolicyProvider` is registered (capability `"publish.policy"`). The reference module `publish-policy-default` loads YAML rules from `policies.yaml` (override with `PUBLISH_POLICY_FILE`); each rule matches a `caller` module ID against `event_types` globs.
 
 Core does not currently:

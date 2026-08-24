@@ -498,19 +498,19 @@ services:
 <h2>Module Checklist</h2>
 <p>Before publishing:</p>
 <ul>
-<li><input disabled="" type="checkbox"> <code>go.mod</code> depends on <code>github.com/Muxcore-Media/core</code> plus domain contract repos</li>
-<li><input disabled="" type="checkbox"> Sidecar entry point at <code>cmd/module/main.go</code></li>
-<li><input disabled="" type="checkbox"> Accepts <code>--muxcore-mesh-addr</code>, <code>--muxcore-module-id</code>, <code>--muxcore-tls-cert</code>, <code>--muxcore-tls-key</code>, and <code>--muxcore-tls-ca</code> flags</li>
-<li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Register()</code> at startup with structured <code>ModuleInfo</code></li>
-<li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Unregister()</code> at shutdown</li>
-<li><input disabled="" type="checkbox"> Handles SIGTERM/SIGINT for graceful shutdown</li>
-<li><input disabled="" type="checkbox"> Implements <code>contracts.Module</code> (Info, Init, Start, Stop, Health)</li>
-<li><input disabled="" type="checkbox"> Implements domain contracts from appropriate <code>contracts-*</code> repos</li>
-<li><input disabled="" type="checkbox"> <code>Contracts</code> declared in <code>Info().Contracts</code></li>
-<li><input disabled="" type="checkbox"> <code>muxcore.json</code> at repo root with <code>contracts</code> and <code>capabilities</code></li>
-<li><input disabled="" type="checkbox"> All external services discovered via <code>DiscoveryService.FindByCapability()</code>, never assumed</li>
-<li><input disabled="" type="checkbox"> Works gracefully when services are unavailable (degraded state)</li>
-<li><input disabled="" type="checkbox"> <code>Meta</code> used for module-specific data instead of assuming core changes</li>
+<li><input disabled="" type="checkbox" aria-label="go.mod depends on github.com/Muxcore-Media/core plus domain contract repos"> <code>go.mod</code> depends on <code>github.com/Muxcore-Media/core</code> plus domain contract repos</li>
+<li><input disabled="" type="checkbox" aria-label="Sidecar entry point at cmd/module/main.go"> Sidecar entry point at <code>cmd/module/main.go</code></li>
+<li><input disabled="" type="checkbox" aria-label="Accepts --muxcore-mesh-addr , --muxcore-module-id , --muxcore-tls-cert , --muxcore-tls-key , and --muxcore-tls-ca flags"> Accepts <code>--muxcore-mesh-addr</code>, <code>--muxcore-module-id</code>, <code>--muxcore-tls-cert</code>, <code>--muxcore-tls-key</code>, and <code>--muxcore-tls-ca</code> flags</li>
+<li><input disabled="" type="checkbox" aria-label="Calls ModuleRegistration.Register() at startup with structured ModuleInfo"> Calls <code>ModuleRegistration.Register()</code> at startup with structured <code>ModuleInfo</code></li>
+<li><input disabled="" type="checkbox" aria-label="Calls ModuleRegistration.Unregister() at shutdown"> Calls <code>ModuleRegistration.Unregister()</code> at shutdown</li>
+<li><input disabled="" type="checkbox" aria-label="Handles SIGTERM/SIGINT for graceful shutdown"> Handles SIGTERM/SIGINT for graceful shutdown</li>
+<li><input disabled="" type="checkbox" aria-label="Implements contracts.Module (Info, Init, Start, Stop, Health)"> Implements <code>contracts.Module</code> (Info, Init, Start, Stop, Health)</li>
+<li><input disabled="" type="checkbox" aria-label="Implements domain contracts from appropriate contracts-* repos"> Implements domain contracts from appropriate <code>contracts-*</code> repos</li>
+<li><input disabled="" type="checkbox" aria-label="Contracts declared in Info().Contracts"> <code>Contracts</code> declared in <code>Info().Contracts</code></li>
+<li><input disabled="" type="checkbox" aria-label="muxcore.json at repo root with contracts and capabilities"> <code>muxcore.json</code> at repo root with <code>contracts</code> and <code>capabilities</code></li>
+<li><input disabled="" type="checkbox" aria-label="All external services discovered via DiscoveryService.FindByCapability() , never assumed"> All external services discovered via <code>DiscoveryService.FindByCapability()</code>, never assumed</li>
+<li><input disabled="" type="checkbox" aria-label="Works gracefully when services are unavailable (degraded state)"> Works gracefully when services are unavailable (degraded state)</li>
+<li><input disabled="" type="checkbox" aria-label="Meta used for module-specific data instead of assuming core changes"> <code>Meta</code> used for module-specific data instead of assuming core changes</li>
 </ul>
 <hr>
 <h2>Next Steps</h2>

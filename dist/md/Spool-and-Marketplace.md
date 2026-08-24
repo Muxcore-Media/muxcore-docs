@@ -9,10 +9,10 @@
 Think of a spool like an app store catalog. It's a list of available modules and curated tag presets. When you run:
 
 ```bash
-muxcored --tag default
+muxcored --tag media
 ```
 
-Core fetches the `default` tag from the official spool (`github.com/Muxcore-Media/spool`) and discovers which modules to load.
+Core fetches the `media` tag from the official spool (`github.com/Muxcore-Media/spool`) and discovers which modules to load. Other curated tags include `minimal`, `default` (platform/tapestry-oriented), `library-plus`, and more under `spool/tags/`.
 
 ### Official vs Third-Party Spools
 
@@ -146,7 +146,7 @@ Core exposes the `SpoolService` gRPC service for runtime management of spools an
 
 ```bash
 # Using admin-ui, grpcurl, or any gRPC client (muxcorectl spool admin deferred):
-# Call DeployTag to load the "media-stack" tag without restarting core
+# Call DeployTag to load the "media" tag without restarting core
 ```
 
 ```go
@@ -154,7 +154,7 @@ spoolClient := spoolv1.NewSpoolServiceClient(conn)
 
 resp, err := spoolClient.DeployTag(ctx, &spoolv1.DeployTagRequest{
     SpoolUrl: "https://github.com/Muxcore-Media/spool",
-    TagName:  "media-stack",
+    TagName:  "media",
 })
 // resp.Spawned   → number of modules newly spawned
 // resp.Skipped   → modules already running
@@ -165,7 +165,7 @@ The `DeployTag` response reports per-module results:
 
 ```json
 {
-  "tag_name": "media-stack",
+  "tag_name": "media",
   "results": [
     {"module_id": "downloader-native-torrent", "spawned": true, "already_running": false},
     {"module_id": "media-movies", "spawned": false, "already_running": true}

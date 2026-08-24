@@ -76,6 +76,39 @@ function parseSidebar(md, pages) {
   return links;
 }
 
+function stripHtml(html) {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function escapeAttr(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+/** Static task-list checkboxes and data tables need explicit a11y metadata. */
+function enhanceAccessibility(html) {
+  html = html.replace(
+    /<li><input([^>]*\btype="checkbox"[^>]*)>([\s\S]*?)<\/li>/gi,
+    (match, attrs, rest) => {
+      const label = stripHtml(rest);
+      if (!label || /\baria-label=/.test(attrs)) return match;
+      return `<li><input${attrs} aria-label="${escapeAttr(label)}">${rest}</li>`;
+    },
+  );
+
+  html = html.replace(/<thead>([\s\S]*?)<\/thead>/gi, (_, inner) => {
+    const scoped = inner.replace(
+      /<th(?![^>]*\bscope=)([^>]*)>/gi,
+      '<th scope="col"$1>',
+    );
+    return `<thead>${scoped}</thead>`;
+  });
+
+  return html;
+}
+
 function layout({ title, body, nav, active }) {
   const navHtml = nav
     .map((item) => {
@@ -116,6 +149,7 @@ function layout({ title, body, nav, active }) {
 }
 
 function syncWikiIntoRepo(src) {
+  if (process.env.MUXCORE_DOCS_SKIP_WIKI_SYNC === "1") return;
   if (resolve(src) === resolve(LOCAL_WIKI)) return;
   mkdirSync(LOCAL_WIKI, { recursive: true });
   for (const f of readdirSync(src)) {
@@ -167,6 +201,7 @@ function main() {
       /<a href="\.\.\/TASKS\.md">([\s\S]*?)<\/a>/g,
       '<span class="workspace-file-ref" title="See workspace TASKS.md">$1</span>',
     );
+    body = enhanceAccessibility(body);
 
     const html = layout({
       title: name.replace(/-/g, " "),

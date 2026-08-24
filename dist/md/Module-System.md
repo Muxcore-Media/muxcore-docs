@@ -95,7 +95,7 @@ func (m *Module) Info() contracts.ModuleInfo {
     return contracts.ModuleInfo{
         ID:        "media-transcoder",
         Name:      "FFmpeg Transcoder",
-        DependsOn: []string{"storage-local", "cache-redis"},
+        DependsOn: []string{"cache-redis"},
     }
 }
 ```
@@ -106,7 +106,7 @@ Core uses `Registry.StartupOrder()` to compute a dependency-respecting module in
 
 ```go
 order, err := reg.StartupOrder()
-// Returns ["storage-local", "cache-redis", "media-transcoder", ...]
+// Returns ["cache-redis", "media-transcoder", ...]
 ```
 
 Cyclic dependencies are detected and return an error.
@@ -116,7 +116,7 @@ Cyclic dependencies are detected and return an error.
 `Registry.DependencyGraph(id)` returns all modules that depend on a given module — useful for impact analysis before stopping or removing a module:
 
 ```go
-dependents, err := reg.DependencyGraph("storage-local")
+dependents, err := reg.DependencyGraph("cache-redis")
 // Returns ["media-transcoder", "media-movies", ...]
 ```
 
@@ -227,7 +227,7 @@ For third-party modules using their own contract repos, the **contracts-reconcil
 
 Infrastructure services are discovered at runtime via `DiscoveryService.FindByCapability()`. Core exposes module mesh services (`Discovery`, `Storage`, `Event`, `ModuleMesh`, `ModuleRegistration`) plus `Health` and admin services (`Spool`, `ModuleLifecycle`, `Audit`). Everything else is optional and module-provided (except core built-ins such as WorkerPool, DeadLetter, Retry, Idempotency, and EventStore).
 
-### Complete Service Discovery Table
+### Common service discovery capabilities
 
 | Service | Capability String | Interface | What It Provides |
 |---------|------------------|-----------|-----------------|
@@ -235,13 +235,18 @@ Infrastructure services are discovered at runtime via `DiscoveryService.FindByCa
 | Database | `"database"` | `DatabaseProvider` | Persistent storage (SQLite, Postgres) |
 | Cache | `"cache"` | `CacheProvider` | Ephemeral state, locks, pub/sub |
 | Cache Layer | `"cache.local"` | `CacheLayer` | Read-through storage caching |
+| Storage | `"storage"` | `StorageProvider` | Blob / object storage backends |
 | Metrics | `"metrics"` | `MetricsProvider` | Counters, gauges, histograms |
 | Tracing | `"tracing"` | `TracingProvider` | Distributed request tracing |
 | Circuit Breaker | `"circuitbreaker"` | `CircuitBreaker` | Fail-fast protection |
 | Config Watcher | `"config.watcher"` | `ConfigWatcher` | Runtime service change notifications |
 | Dead Letter | `"deadletter"` | `DeadLetterProvider` | Store and replay failed events |
 | Call Policy | `"call.policy"` | `CallPolicyProvider` | Inter-module access control |
+| Publish Policy | `"publish.policy"` | `PublishPolicyProvider` | Event publication access control |
 | Identity | `"identity"` | `IdentityProvider` | Extract caller identity from context |
+| Auth | `"auth"` | `AuthProvider` | Authenticate users / tokens |
+| Authorizer | `"authorizer"` | `Authorizer` | Permission checks |
+| Rate Limit | `"ratelimit"` | `RateLimiterProvider` | Throttle API requests |
 | Logging | `"logging"` | `StructuredLogger` | Structured, leveled logging |
 | Retry | `"retry"` | `RetryProvider` | Retry with backoff and jitter |
 | Idempotency | `"idempotency"` | `IdempotencyProvider` | Prevent duplicate processing |
@@ -253,9 +258,13 @@ Infrastructure services are discovered at runtime via `DiscoveryService.FindByCa
 | Event Store | `"event.store"` | `EventStore` | Durable append-only event log |
 | Input Validation | `"input.validate"` | `InputValidator` | Schema-based input validation |
 | Workflow Engine | `"workflow.engine"` | `WorkflowEngine` | Multi-step tapestry orchestration |
-| Publish Policy | `"publish.policy"` | `PublishPolicyProvider` | Event publication access control |
+| Worker Pool | `"worker.pool"` | `WorkerPool` | Distributed task execution |
+| Scheduler | `"scheduler"` | `Scheduler` | Cron-style scheduling |
+| Health Monitor | `"health.monitor"` | `HealthMonitor` | Periodic module health checks |
+| Backup | `"backup"` | `BackupProvider` | Backup / restore hooks |
+| Spool Resolver | `"spool.resolver"` | `SpoolResolver` | Resolve / fetch spool module sources |
 
-If no module provides a capability, callers handle it gracefully — using a default, falling back to a simpler mode, or logging a warning. Every service is optional.
+Canonical constants: `pkg/contracts/capabilities.go`. Executor capabilities use the `"executor."` prefix. If no module provides a capability, callers handle it gracefully — using a default, falling back to a simpler mode, or logging a warning. Every service is optional.
 
 ---
 

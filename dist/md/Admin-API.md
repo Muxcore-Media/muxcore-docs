@@ -24,7 +24,7 @@ Runtime management of spool configurations and tag-based module deployment. Use 
 
 ```json
 {
-  "tag_name": "media-stack",
+  "tag_name": "media",
   "spool_url": "https://github.com/Muxcore-Media/spool",
   "results": [
     {"module_id": "downloader-native-torrent", "spawned": true, "already_running": false, "error": ""},
@@ -122,7 +122,7 @@ The existing `DiscoveryService` was extended with a `ListAll` RPC that returns h
 | `health_error` | string | Empty when healthy, last health check error otherwise |
 | `node_id` | string | Cluster node running this module |
 
-The `ModuleInfoProto` also now carries `state` (field 11), `health_error` (field 12), and `repository` (field 13) for consolidated reporting.
+The `ModuleInfoProto` also carries `state` (field 11) and `health_error` (field 12). Repository/source URL for a running module is on lifecycle `ModuleStatusProto.repo`, not on discovery `ModuleInfoProto`.
 
 ---
 
