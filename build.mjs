@@ -196,10 +196,11 @@ function main() {
     const md = readFileSync(join(src, file), "utf8");
     let body = marked.parse(md, { async: false });
     body = rewriteWikiLinks(body, pages);
-    // Workspace-only TASKS.md links are not routable in the static site.
+    // Workspace paths (../…) are not routable in the static site — use non-link refs.
     body = body.replace(
-      /<a href="\.\.\/TASKS\.md">([\s\S]*?)<\/a>/g,
-      '<span class="workspace-file-ref" title="See workspace TASKS.md">$1</span>',
+      /<a href="\.\.\/([^"]+)">([\s\S]*?)<\/a>/g,
+      (_, path, inner) =>
+        `<span class="workspace-file-ref" title="See workspace ${escapeAttr(path)}">${inner}</span>`,
     );
     body = enhanceAccessibility(body);
 

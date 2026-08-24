@@ -296,7 +296,7 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 <p>On the MuxCore MVP host:</p>
 <ul>
 <li><strong>Do not</strong> set <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> on staging/production. Dev/unit tests may still use it locally.</li>
-<li>Staging cutover checklist: <a href="../_mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></a> (<code>muxcore.staging.json</code> + <code>run-host-staging.sh</code>).</li>
+<li>Staging cutover checklist: <span class="workspace-file-ref" title="See workspace _mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></span> (<code>muxcore.staging.json</code> + <code>run-host-staging.sh</code>).</li>
 <li><strong>Auth URL split:</strong> browsers use the public auth base (e.g. <code>https://auth.gringotts</code>); server-side code exchange uses the internal base (e.g. <code>http://127.0.0.1:9401</code>). Never point admin-ui auth vars at the admin UI port itself.</li>
 </ul>
 <h3>Phase 2 / 3 identity &amp; SIEM status</h3>
