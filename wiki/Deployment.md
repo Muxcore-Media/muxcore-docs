@@ -70,7 +70,7 @@ Configuration: `muxcore.json` and env — [Configuration Reference](Configuratio
 
 ## Self-hosted CI and local registry (no billing narrative)
 
-MuxCore packaging assumes a **laptop or home lab** plus a **GitHub free** org/account. Product and contributor docs must not depend on paid GitHub Actions minutes or paid package tiers.
+MuxCore packaging assumes a **laptop or home lab** plus **Forgejo origin** on vault (`git.zem.systems`). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (`.forgejo/workflows/`).
 
 ### CI
 
