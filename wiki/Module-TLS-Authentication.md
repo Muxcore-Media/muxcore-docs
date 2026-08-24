@@ -49,6 +49,8 @@ External modules (not spawned by core — running in separate containers or on d
 4. Core validates the token (format, expiry, single-use, module ID match) and returns a signed certificate + key + CA cert
 5. The module reconnects with mTLS using the received credentials
 
+> **Path 2 status:** `BootstrapRegister` is on the mesh public allowlist (`moduleRegistrationMethods`). The one-time bootstrap token is the authentication for that RPC.
+
 **Token format:** `mct_<version>_<moduleID>_<hex>` (e.g., `mct_1_downloader-native-torrent_a1b2c3...`)
 
 **Token properties:**
@@ -124,21 +126,15 @@ When mTLS is enabled, every gRPC connection carries a TLS client certificate who
 | Certificate issuance | Internal CA, signed with ECDSA P-256 |
 | Token security | SHA-256 hashed, single-use, 5-min TTL |
 | Key protection | PEM files at `0600` permissions |
-| Cluster PKI | CA key distributed via join response, AES-256-GCM wrapped with join token |
+| Cluster CA sharing | **Not implemented** — operators must share/mount the same `ca_cert_dir` (or CA files) on every node today |
 
 ---
 
-## Cluster PKI Distribution
+## Cluster CA sharing (current vs planned)
 
-When a new node joins a cluster:
+**Today:** `JoinResponse` carries only `cluster_id`, `members`, `leader_id`, and `term` (`discovery.proto`). There is no encrypted CA key in the join path, and no public `CertAuthority.LoadCA()` for joiners. For multi-node mTLS, configure the **same** CA directory/files on each node (shared volume, config management, etc.).
 
-1. The seed node encrypts the CA private key with AES-256-GCM using a key derived from the join token (SHA-256)
-2. The encrypted key + CA cert + signed node cert are returned in the `JoinResponse`
-3. The joining node decrypts the CA key and installs it via `CertAuthority.LoadCA()`
-4. All nodes in the cluster now trust the same CA
-5. Each node can independently issue module certificates that every other node trusts
-
-This means **modules can move between nodes** in a cluster — their certificates are accepted everywhere.
+**Not built yet:** AES-256-GCM wrap of the CA private key into `JoinResponse` keyed by the join token. Treat that design as aspirational until code lands — do not rely on join to distribute CA material.
 
 ---
 

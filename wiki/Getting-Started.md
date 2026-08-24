@@ -49,7 +49,7 @@ Typical shape (exact flags land with the installer release):
 # Follow printed VIEW-ME.txt for admin / consumer URLs
 ```
 
-Until the installer ships, use **Path B** (manual release binaries) or the developer lab in `_mvp/` (sibling builds — not the end-user path).
+Prefer **Path A** (`muxcore-installer`) for a laptop demo. Use **Path B** (manual release binaries) when you already manage binaries yourself. The developer lab in `_mvp/` (sibling builds) is not the end-user path.
 
 ---
 
@@ -215,6 +215,18 @@ Official spool: `https://github.com/Muxcore-Media/spool`. Modules there are main
 Third-party `--spool` URLs are untrusted: audit module repos and pins, prefer commit/tag pins, and run untrusted sets in a sandbox. Modules inherit the loom’s OS privileges. Details: [Spool Security](Spool-Security).
 
 ---
+
+## Staging TLS and public auth URLs
+
+For a real host (not unit tests):
+
+1. Prefer mTLS (`MUXCORE_GRPC_MTLS_ENABLED=true` / `grpc.mtls_enabled` in config). See [Module TLS Authentication](Module-TLS-Authentication) and [Deployment](Deployment#mtls-and-certificate-management).
+2. Never leave `MUXCORE_INSECURE_DISABLE_TLS=true` on staging or production processes.
+3. When using auth-local / auth-oidc behind a reverse proxy, split URLs:
+   - **Public (browser):** e.g. `https://auth.gringotts` (`AUTH_HTTP_URL` / `ADMIN_UI_AUTH_ADDR`)
+   - **Internal (code exchange):** e.g. `http://127.0.0.1:9401` (`AUTH_HTTP_INTERNAL_URL` / `ADMIN_UI_AUTH_INTERNAL_ADDR`)
+
+Full operator checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md).
 
 ## Next steps
 

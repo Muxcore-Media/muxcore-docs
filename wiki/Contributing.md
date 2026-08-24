@@ -8,7 +8,7 @@
 
 ### Prerequisites
 
-- **Go 1.24+** (project targets Go 1.26)
+- **Go 1.26.x** (see `go.mod`; currently `go 1.26.4`)
 - **protoc** + **protoc-gen-go** + **protoc-gen-go-grpc** (for proto changes)
 - **git** + **GitHub account**
 
@@ -23,7 +23,9 @@ go build ./...
 ### Run Tests
 
 ```bash
-scripts/run_tests.sh
+make test
+# or full gate:
+make ci
 ```
 
 ### Lint
@@ -75,7 +77,7 @@ Before adding a new contract to `pkg/contracts/`:
 2. Is it discoverable via `Registry.FindByCapability()`?
 3. Is the interface minimal (only methods modules actually need)?
 4. Are security considerations documented on the interface type?
-5. Is the contract documented in the wiki Contracts page and this skill?
+5. Is the contract documented in the wiki [Contracts](Contracts) page?
 
 ### Module Contributions
 
@@ -94,7 +96,7 @@ Modules are standalone binaries, not compile-time imports. See [Writing Modules]
 ### Before Opening a PR
 
 1. `go build ./...` passes
-2. `scripts/run_tests.sh` passes
+2. `make test` (or `make ci`) passes
 3. `golangci-lint run` passes
 4. New code has tests
 5. New contracts are documented in the wiki

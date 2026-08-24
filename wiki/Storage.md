@@ -51,7 +51,7 @@ type StorageProvider interface {
 }
 ```
 
-Every storage backend implements this. Today core ships a **local filesystem** provider; additional backends (S3, Ceph, etc.) arrive as modules when available.
+Every storage backend implements this. Core registers a **built-in local filesystem** provider only when `MUXCORE_STORAGE_DIR` is set (laptop demo / installer). Otherwise modules wait for a storage module (`storage-s3`, `storage-ceph`, `storage-overlay`, …).
 
 ### Layer 2: The Orchestrator
 
@@ -71,11 +71,11 @@ type StorageOrchestrator interface {
     Move(ctx, src, dst string) error
     Stream(ctx, key string, offset, length int64) (io.ReadCloser, error)
     CapabilityCheck(ctx, key string) ([]string, error)
-    Promote(ctx, key string) error
-    Relegate(ctx, key string) error
-    // ...
+    // Exists, Stat, List — see pkg/contracts/storage.go
 }
 ```
+
+`Promote` / `Relegate` live on the optional **`TieredProvider`** capability interface (implemented by tiered storage modules), not on `StorageOrchestrator`.
 
 List operations accept an empty prefix to list all objects. `CapabilityCheck` accepts an empty key to check capabilities of the default provider.
 
@@ -175,7 +175,7 @@ Planned overlays:
 
 ## Storage Policies
 
-Programmatic routing is live: the orchestrator evaluates ordered `RoutingPolicy` rules (first match wins) via `AddPolicy` / `SetPolicies`. Put placement matches on object **prefix** and/or **label** metadata; **age_days** rules apply only to background migration (relegate), not Put. Core loads `storage.policies` from config at startup (`PoliciesFromConfig`).
+Prefix routing is live on the concrete orchestrator: ordered `RoutingPolicy` rules (first match wins) via `AddPolicy`. Each policy has `Name`, `Prefix`, and `Provider` only — there is no `SetPolicies`, no label/`age_days` matcher, and no `storage.policies` config JSON loader today.
 
 ```go
 orch.AddPolicy(storage.RoutingPolicy{
@@ -185,38 +185,12 @@ orch.AddPolicy(storage.RoutingPolicy{
 })
 orch.AddPolicy(storage.RoutingPolicy{
     Name:     "archive",
-    AgeDays:  365,
-    Tier:     contracts.StorageTierCold,
+    Prefix:   "archive/",
+    Provider: "cold-hdd",
 })
 ```
 
-Config shape (`storage.policies` in core config JSON):
-
-```json
-{
-  "storage": {
-    "policies": [
-      {
-        "name": "temp",
-        "match": { "label": "transcoding-temp" },
-        "provider": "local-ssd"
-      },
-      {
-        "name": "hot-prefix",
-        "match": { "prefix": "hot/" },
-        "provider": "fast-nvme"
-      },
-      {
-        "name": "cold-age",
-        "match": { "age_days": 365 },
-        "tier": "cold"
-      }
-    ]
-  }
-}
-```
-
-**Still in progress:** declarative `media_type` / quality-based YAML rules (the aspirational media-aware policy language). Until that lands, route by prefix/label/age as above.
+**Not implemented yet:** config-driven `storage.policies`, label/age matchers, and declarative media_type / quality-based YAML rules. Until those land, call `AddPolicy` from code (or rely on a single default provider).
 
 ---
 

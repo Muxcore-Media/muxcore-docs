@@ -2,6 +2,8 @@
 
 **Every configuration option in MuxCore** — config file keys, environment variables, CLI flags, and their defaults. Includes the **laptop demo / installer** env knobs (`DOWNLOADER_ENGINE=fixture`, `TMDB_FIXTURE`, mesh dial local, ports) used by `_mvp` and `muxcore-installer`.
 
+For the full gRPC/HTTP host-port table (MVP modules + collision remaps), see **[Port Map](Port-Map)**.
+
 ---
 
 ## Config File (`muxcore.json`)
@@ -12,6 +14,7 @@ Place `muxcore.json` in the working directory, or override the path with `MUXCOR
 
 | Key | Type | Description |
 |-----|------|-------------|
+| `version` | string | Config schema version; only `"1"` is valid (empty means v1) |
 | `server` | `ServerConfig` | HTTP server settings |
 | `grpc` | `GRPCConfig` | gRPC mesh settings |
 | `log` | `LogConfig` | Structured logging |
@@ -29,7 +32,7 @@ Place `muxcore.json` in the working directory, or override the path with `MUXCOR
 | `write_timeout` | int | `15` | Write timeout in seconds |
 | `cert_file` | string | `""` | Path to TLS certificate PEM file |
 | `key_file` | string | `""` | Path to TLS private key PEM file |
-| `trusted_proxies` | []string | loopback (`127.0.0.0/8`, `::1/128`) when empty | CIDRs whose `X-Forwarded-For` is trusted; no env override |
+| `trusted_proxies` | []string | loopback only when empty | CIDRs whose `X-Forwarded-For` is trusted; also `MUXCORE_SERVER_TRUSTED_PROXIES` |
 
 ### `grpc`
 
@@ -40,7 +43,7 @@ Place `muxcore.json` in the working directory, or override the path with `MUXCOR
 | `key_file` | string | `""` | Path to TLS private key PEM file |
 | `mtls_enabled` | bool | `false` | Require mutual TLS |
 | `ca_cert_file` | string | `""` | Path to CA cert for mTLS client verification (manual setup) |
-| `ca_cert_dir` | string | `""` | Directory for internal auto-generated CA (`ca.crt` + `ca.key`). Defaults to `<data-dir>/ca/` |
+| `ca_cert_dir` | string | `""` | Directory for internal auto-generated CA (`ca.crt` + `ca.key`). When empty and auto-mTLS runs, core uses `~/.muxcore/ca` |
 | `seed_nodes` | []string | `[]` | Cluster seed node addresses (`host:port`) |
 | `join_token` | string | `""` | Pre-shared token required to join the cluster |
 | `max_message_size_mb` | int | `32` | gRPC max message size in MB (affects storage streaming). Must be positive. |
@@ -147,6 +150,7 @@ All environment variables override their corresponding config file keys. Variabl
 | `MUXCORE_TLS_KEY` | `server.key_file` | deprecated alias |
 | `MUXCORE_SERVER_READ_TIMEOUT` | `server.read_timeout` | (seconds) |
 | `MUXCORE_SERVER_WRITE_TIMEOUT` | `server.write_timeout` | (seconds) |
+| `MUXCORE_SERVER_TRUSTED_PROXIES` | `server.trusted_proxies` | comma-separated CIDRs; empty = loopback only |
 
 ### gRPC
 
@@ -160,6 +164,7 @@ All environment variables override their corresponding config file keys. Variabl
 | `MUXCORE_GRPC_SEED_NODES` | `grpc.seed_nodes` | `""` (comma-separated) |
 | `MUXCORE_GRPC_JOIN_TOKEN` | `grpc.join_token` | `""` |
 | `MUXCORE_CLUSTER_JOIN_TOKEN` | `grpc.join_token` | fallback if `MUXCORE_GRPC_JOIN_TOKEN` unset |
+| `MUXCORE_GRPC_MAX_MESSAGE_SIZE_MB` | `grpc.max_message_size_mb` | `32` |
 | `MUXCORE_INSECURE_DISABLE_TLS` | (behavior flag) | unset |
 
 ### Logging
@@ -183,6 +188,17 @@ All environment variables override their corresponding config file keys. Variabl
 | Variable | Config Key | Default |
 |----------|-----------|---------|
 | `MUXCORE_AUDIT_PATH` | `audit.path` | `""` (disabled) |
+| `MUXCORE_AUDIT_PATH_FILE` | `audit.path` | path to a file whose contents become `audit.path` (overrides `MUXCORE_AUDIT_PATH` when readable) |
+| `MUXCORE_AUDIT_MAX_SIZE_MB` | `audit.max_size_mb` | `100` |
+| `MUXCORE_AUDIT_MAX_ROTATED_FILES` | `audit.max_rotated_files` | `5` |
+
+### Storage timeouts
+
+| Variable | Config Key | Default |
+|----------|-----------|---------|
+| `MUXCORE_STORAGE_READ_TIMEOUT` | `storage.read_timeout_seconds` | `30` |
+| `MUXCORE_STORAGE_WRITE_TIMEOUT` | `storage.write_timeout_seconds` | `300` |
+| `MUXCORE_STORAGE_DELETE_TIMEOUT` | `storage.delete_timeout_seconds` | `30` |
 
 ### Spool
 
@@ -247,10 +263,12 @@ Also leave `TMDB_API_KEY` unset when `TMDB_FIXTURE=1`. Optional live TMDB is ope
 
 ### Mesh address & client dial targets
 
+These are **client dial targets** for sidecars, smoke scripts, and host tooling. They do **not** change `muxcored`’s gRPC listen address (`grpc.addr` / default `:9090` comes from config file / `Default()` only — there is no `MUXCORE_*` env that sets the loom listen port).
+
 | Variable | Demo default | Purpose |
 |----------|--------------|---------|
-| `MUXCORE_MESH_ADDR` | `127.0.0.1:9090` | Core gRPC mesh as seen by smoke / listmodules / host scripts (not a loom config key; scripts and modules also accept `MUXCORE_GRPC_ADDR`). |
-| `MUXCORE_GRPC_ADDR` | same mesh host:port | Sidecar SDK: address of core’s gRPC mesh to register against. |
+| `MUXCORE_MESH_ADDR` | `127.0.0.1:9090` | Where operators / smoke / listmodules dial the core mesh |
+| `MUXCORE_GRPC_ADDR` | same mesh host:port | Sidecar SDK: address of core’s gRPC mesh to register against |
 
 ### Smoke URLs & timeouts
 
@@ -353,6 +371,7 @@ See [Getting Started](Getting-Started) for install paths and [Deployment](Deploy
 |------|---------|-------------|
 | `--tag` | (none) | Tag name to load from spool (e.g., `default`) |
 | `--spool` | `https://github.com/Muxcore-Media/spool` | Spool URL to fetch tags from |
+| `--dry-run` | false | Validate config, TLS certs, and spool connectivity, then exit 0 on success |
 | `--version` | — | Print version and exit |
 
 Without `--tag`, core starts as a bare loom — HTTP server + gRPC mesh, zero modules.
@@ -369,7 +388,9 @@ kill -HUP $(pidof muxcored)
 
 **Applied live (no restart needed):**
 - `log.level`, `log.format`
-- `grpc.seed_nodes`
+
+**Detected on reload but not applied (restart required):**
+- `grpc.seed_nodes` — change is logged; core does not re-join cluster peers until restart
 
 **Requires restart (warning logged, change NOT applied):**
 - `audit.path` — the file handle stays open to the original file until restart
