@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,57 +8,35 @@ import axe from "axe-core";
 import { JSDOM } from "jsdom";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const DIST = join(ROOT, "dist");
 
-/** First-wave pages audited for WCAG 2.2 AA shell semantics. */
-const FIRST_WAVE_PAGES = [
+/** Every HTML page in the static site (Home → index.html). */
+const ALL_PAGES = [
   "index.html",
+  "Admin-API.html",
+  "Architecture.html",
+  "Configuration-Reference.html",
+  "Contracts.html",
+  "Contributing.html",
   "Core-Concepts.html",
+  "Deployment.html",
+  "Event-System.html",
   "Getting-Started.html",
-  "Configuration-Reference.html",
-  "Port-Map.html",
-];
-
-/** Second-wave pages: architecture and module reference docs. */
-const SECOND_WAVE_PAGES = [
-  "Architecture.html",
   "Module-System.html",
+  "Module-TLS-Authentication.html",
+  "Port-Map.html",
+  "Roadmap.html",
+  "Security.html",
+  "Spool-and-Marketplace.html",
+  "Spool-Security.html",
+  "Storage.html",
+  "Tasks.html",
+  "Workflow-Engine.html",
   "Writing-Modules.html",
-  "Contracts.html",
-  "Event-System.html",
 ];
-
-/** Third-wave pages: storage, workflows, deployment, and security docs. */
-const THIRD_WAVE_PAGES = [
-  "Storage.html",
-  "Workflow-Engine.html",
-  "Deployment.html",
-  "Security.html",
-  "Module-TLS-Authentication.html",
-];
-
-const AUDITED_PAGES = [
-  ...FIRST_WAVE_PAGES,
-  ...SECOND_WAVE_PAGES,
-  ...THIRD_WAVE_PAGES,
-];
-
-/** Pages that ship data tables in main content. */
-const PAGES_WITH_TABLES = new Set([
-  "Architecture.html",
-  "Module-System.html",
-  "Contracts.html",
-  "Event-System.html",
-  "Configuration-Reference.html",
-  "Port-Map.html",
-  "Storage.html",
-  "Workflow-Engine.html",
-  "Deployment.html",
-  "Security.html",
-  "Module-TLS-Authentication.html",
-]);
 
 function loadPage(file) {
-  const html = readFileSync(join(ROOT, "dist", file), "utf8");
+  const html = readFileSync(join(DIST, file), "utf8");
   return new JSDOM(html, { url: `http://localhost/${file}` });
 }
 
@@ -83,16 +61,24 @@ function runAxe(dom) {
   });
 }
 
+function pageHasDataTables(document) {
+  return document.querySelectorAll("main table thead th").length > 0;
+}
+
 before(() => {
   execSync("node build.mjs", {
     cwd: ROOT,
     stdio: "pipe",
     env: { ...process.env, MUXCORE_DOCS_SKIP_WIKI_SYNC: "1" },
   });
+  const built = readdirSync(DIST)
+    .filter((f) => f.endsWith(".html"))
+    .sort((a, b) => (a === "index.html" ? -1 : b === "index.html" ? 1 : a.localeCompare(b)));
+  assert.deepEqual(built, ALL_PAGES, "dist pages match audited list");
 });
 
 describe("muxcore-docs page shell accessibility", () => {
-  for (const file of AUDITED_PAGES) {
+  for (const file of ALL_PAGES) {
     describe(file, () => {
       it("exposes skip link, landmarks, and a single page h1", () => {
         const dom = loadPage(file);
@@ -125,6 +111,13 @@ describe("muxcore-docs page shell accessibility", () => {
         assert.match(current.className, /\bactive\b/);
       });
 
+      it("does not expose broken workspace path links in main content", () => {
+        const dom = loadPage(file);
+        const { document } = dom.window;
+        const bad = document.querySelectorAll("main a[href^='../']");
+        assert.equal(bad.length, 0, "workspace paths use workspace-file-ref, not links");
+      });
+
       it("passes axe WCAG 2.2 AA rules", async () => {
         const dom = loadPage(file);
         const results = await runAxe(dom);
@@ -132,17 +125,15 @@ describe("muxcore-docs page shell accessibility", () => {
         assert.deepEqual(violations, [], violations.join("\n"));
       });
 
-      if (PAGES_WITH_TABLES.has(file)) {
-        it("scopes table column headers", () => {
-          const dom = loadPage(file);
-          const { document } = dom.window;
-          const headers = document.querySelectorAll("main table thead th");
-          assert.ok(headers.length > 0, "page includes at least one data table");
-          for (const th of headers) {
-            assert.equal(th.getAttribute("scope"), "col", `missing scope on: ${th.textContent}`);
-          }
-        });
-      }
+      it("scopes table column headers when tables are present", () => {
+        const dom = loadPage(file);
+        const { document } = dom.window;
+        if (!pageHasDataTables(document)) return;
+        const headers = document.querySelectorAll("main table thead th");
+        for (const th of headers) {
+          assert.equal(th.getAttribute("scope"), "col", `missing scope on: ${th.textContent}`);
+        }
+      });
 
       if (file === "Writing-Modules.html") {
         it("labels static checklist checkboxes", () => {

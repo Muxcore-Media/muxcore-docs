@@ -148,13 +148,13 @@ $RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
 </thead>
 <tbody><tr>
 <td><code>muxcored</code> (<code>core</code>)</td>
-<td><a href="../core/.goreleaser.yaml"><code>.goreleaser.yaml</code></a></td>
-<td><a href="../core/.github/workflows/release.yml"><code>release.yml</code></a> (<code>runs-on: self-hosted</code>)</td>
+<td><span class="workspace-file-ref" title="See workspace core/.goreleaser.yaml"><code>.goreleaser.yaml</code></span></td>
+<td><span class="workspace-file-ref" title="See workspace core/.github/workflows/release.yml"><code>release.yml</code></span> (<code>runs-on: self-hosted</code>)</td>
 <td>linux/darwin × amd64/arm64 tarballs (+ checksums; optional cosign/SBOM)</td>
 </tr>
 <tr>
 <td><code>muxcorectl</code> (<code>muxcorectl-cli</code>)</td>
-<td><a href="../muxcorectl-cli/.goreleaser.yaml"><code>.goreleaser.yaml</code></a></td>
+<td><span class="workspace-file-ref" title="See workspace muxcorectl-cli/.goreleaser.yaml"><code>.goreleaser.yaml</code></span></td>
 <td>same pattern</td>
 <td>linux/darwin × amd64/arm64 tarballs</td>
 </tr>
@@ -165,7 +165,7 @@ $RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
 <td><code>go build</code> linux amd64+arm64 → GitHub Release assets (installer pin matrix)</td>
 </tr>
 </tbody></table>
-<p>Local preview without publishing: <code>make release-snapshot</code> in <code>core</code> or <code>muxcorectl-cli</code> (requires GoReleaser CLI). Installer pins: <a href="../muxcore-installer/PIN-MATRIX.md"><code>muxcore-installer/PIN-MATRIX.md</code></a>.</p>
+<p>Local preview without publishing: <code>make release-snapshot</code> in <code>core</code> or <code>muxcorectl-cli</code> (requires GoReleaser CLI). Installer pins: <span class="workspace-file-ref" title="See workspace muxcore-installer/PIN-MATRIX.md"><code>muxcore-installer/PIN-MATRIX.md</code></span>.</p>
 <hr>
 <h2>Phase 2: Multiple machines</h2>
 <p>Add workers when you need distributed transcoding, extra storage, or failover. Still no requirement for cloud billing.</p>
@@ -307,9 +307,9 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 <h2>Staging profile (operator MVP)</h2>
 <p>The operator host documents a <strong>staging</strong> profile that boots with mTLS and <strong>without</strong> <code>MUXCORE_INSECURE_DISABLE_TLS</code>:</p>
 <ul>
-<li>Config: <a href="../_mvp/muxcore.staging.json"><code>_mvp/muxcore.staging.json</code></a> (<code>mtls_enabled: true</code>)</li>
-<li>Runner: <a href="../_mvp/run-host-staging.sh"><code>_mvp/run-host-staging.sh</code></a></li>
-<li>Checklist: <a href="../_mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></a></li>
+<li>Config: <span class="workspace-file-ref" title="See workspace _mvp/muxcore.staging.json"><code>_mvp/muxcore.staging.json</code></span> (<code>mtls_enabled: true</code>)</li>
+<li>Runner: <span class="workspace-file-ref" title="See workspace _mvp/run-host-staging.sh"><code>_mvp/run-host-staging.sh</code></span></li>
+<li>Checklist: <span class="workspace-file-ref" title="See workspace _mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></span></li>
 </ul>
 <p>Public browser auth should use a TLS-terminated hostname (e.g. <code>https://auth.gringotts</code>); internal module HTTP for token/code exchange stays on loopback (e.g. <code>http://127.0.0.1:9401</code>). Details: <a href="Security#operator-host-notes-tls--auth-urls">Security</a>.</p>
 <h2>Next steps</h2>
