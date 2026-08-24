@@ -32,7 +32,7 @@ When `muxcored` starts, here's what happens in order:
 21. Set health checker combining core probes + module state
 22. Start HTTP server on :8080
 23. Start gRPC server on :9090
-24. Auto-join seed nodes (TLS required) — cluster CA distributed in JoinResponse
+24. Auto-join seed nodes (TLS required) — JoinResponse is membership only (no CA key distribution)
 25. Start heartbeat loop (10s interval, carries module list + cluster term)
 26. Start SIGHUP config-reload goroutine
 27. Wait for shutdown signal
@@ -85,7 +85,7 @@ Modules communicate with core entirely through gRPC. Six services serve module-t
 | **ModuleRegistration** | `muxcore.module.v1` | `Register()`, `Unregister()`, `BootstrapRegister()` |
 | **DiscoveryService** | `muxcore.discovery.v1` | `FindByCapability()`, `FindByRole()`, `Resolve()`, `ListAll()`, `Members()`, `Watch()`, `Join()` |
 | **StorageService** | `muxcore.storage.v1` | `Put()` / `Get()` (streaming), `Delete()`, `Stat()`, `List()`, `Capabilities()` |
-| **EventService** | `muxcore.events.v1` | `Publish()`, `Subscribe()` (streaming), `Request()` |
+| **EventService** | `muxcore.events.v1` | `Publish()`, `Subscribe()` (streaming), `Request()`, `Replay()` (needs `MUXCORE_EVENT_JOURNAL_PATH`) |
 | **ModuleMesh** | `muxcore.mesh.v1` | `Call()`, `StreamCall()` |
 | **HealthService** | `muxcore.health.v1` | `Check()` (plus standard gRPC health probe) |
 
@@ -161,7 +161,7 @@ Modules are standalone binaries, not compile-time imports. Core spawns them as c
 1. Accept `--muxcore-mesh-addr` (default: `localhost:9090`)
 2. Accept `--muxcore-module-id` (its identifier)
 3. Connect to the gRPC mesh
-4. Call `ModuleRegistration.Register()` with JSON-serialized `ModuleInfo`
+4. Call `ModuleRegistration.Register()` with a structured protobuf `ModuleInfo` (SDK fills fields from `contracts.ModuleInfo` — not a JSON blob)
 5. Respond to SIGTERM/SIGINT for graceful shutdown
 6. Call `ModuleRegistration.Unregister()` on exit
 
@@ -195,7 +195,7 @@ When a node dies:
 1. Surviving nodes evict it after 30s heartbeat timeout
 2. If the evicted node was the leader, re-election runs automatically
 3. Mesh stops routing calls to the dead node's modules
-4. Leader may resurrect orphaned tag modules on a surviving node; departed-node worker tasks are released to Pending for redispatch (up to `MaxRetries`; exhausted retries fail)
+4. Leader may resurrect orphaned tag modules on a surviving node; departed-node worker tasks are released to Pending via `FailNodeTasks` for redispatch (failed only after `MaxRetries` when set).
 
 ### Cluster Events
 
@@ -203,8 +203,9 @@ When a node dies:
 |-------|---------------|------|
 | Node Joined | `TYPE_NODE_JOINED` | New core joins the cluster |
 | Node Left | `TYPE_NODE_LEFT` | Core evicted (dead) or gracefully leaves |
-| Node Degraded | `TYPE_NODE_DEGRADED` | Node reports reduced capability |
 | Leader Changed | `TYPE_LEADER_CHANGED` | Election produces a new leader |
+
+`TYPE_NODE_DEGRADED` exists on the Go `Cluster.Events()` poll adapter (`pkg/contracts`) but is **not** emitted on `DiscoveryService.Watch()` today (Watch only JOINS / LEFT / LEADER_CHANGED).
 
 ### Connection Pooling
 
@@ -244,7 +245,7 @@ In Go HTTP middleware, the last wrapper applied executes first. The `rebuildChai
 
 ## Proxy Trust
 
-`X-Forwarded-For` is trusted only from configured proxy CIDRs (loopback by default: `127.0.0.0/8`, `::1/128`). Untrusted peers: XFF ignored; client IP is `RemoteAddr`. `X-Real-IP` is not used. Configure via `server.trusted_proxies` or `SetTrustedProxies(cidrs []string)`. Trusted CIDRs should name the immediate reverse-proxy hop(s).
+`X-Forwarded-For` is trusted only from configured proxy CIDRs (loopback by default: `127.0.0.0/8`, `::1/128`). Untrusted peers: XFF ignored; client IP is `RemoteAddr`. `X-Real-IP` is not used. Configure via `server.trusted_proxies` / `MUXCORE_SERVER_TRUSTED_PROXIES` or `SetTrustedProxies(cidrs []string)`. Trusted CIDRs should name the immediate reverse-proxy hop(s).
 
 ## Configuration Loading
 
@@ -270,7 +271,9 @@ kill -HUP $(pidof muxcored)
 
 **Safe changes** (applied immediately without restart):
 - Log level and format
-- Seed node list
+
+**Detected on reload but not applied** (restart required to take effect):
+- Seed node list — change is logged; core does not re-join cluster peers until restart
 
 **Unsafe changes** (logged as warnings; require restart):
 - Audit log path
@@ -293,6 +296,8 @@ Observability endpoints that **do** stay in core:
 | Endpoint | Gated by | Purpose |
 |----------|----------|---------|
 | `/health` | Always on | Liveness / readiness for load balancers |
+| `/version` | Always on | Build / version string |
+| `/api/v1/tasks*` | Worker pool present | List / get / cancel / reassign tasks |
 | `/metrics` | `MUXCORE_METRICS_ENABLE=true` | Prometheus scraping |
 | `/debug/pprof/*` | `MUXCORE_DEBUG_ENABLE=true` | Go runtime profiling |
 

@@ -18,6 +18,27 @@ const FIRST_WAVE_PAGES = [
   "Port-Map.html",
 ];
 
+/** Second-wave pages: architecture and module reference docs. */
+const SECOND_WAVE_PAGES = [
+  "Architecture.html",
+  "Module-System.html",
+  "Writing-Modules.html",
+  "Contracts.html",
+  "Event-System.html",
+];
+
+const AUDITED_PAGES = [...FIRST_WAVE_PAGES, ...SECOND_WAVE_PAGES];
+
+/** Pages that ship data tables in main content. */
+const PAGES_WITH_TABLES = new Set([
+  "Architecture.html",
+  "Module-System.html",
+  "Contracts.html",
+  "Event-System.html",
+  "Configuration-Reference.html",
+  "Port-Map.html",
+]);
+
 function loadPage(file) {
   const html = readFileSync(join(ROOT, "dist", file), "utf8");
   return new JSDOM(html, { url: `http://localhost/${file}` });
@@ -45,11 +66,15 @@ function runAxe(dom) {
 }
 
 before(() => {
-  execSync("node build.mjs", { cwd: ROOT, stdio: "pipe" });
+  execSync("node build.mjs", {
+    cwd: ROOT,
+    stdio: "pipe",
+    env: { ...process.env, MUXCORE_DOCS_SKIP_WIKI_SYNC: "1" },
+  });
 });
 
 describe("muxcore-docs page shell accessibility", () => {
-  for (const file of FIRST_WAVE_PAGES) {
+  for (const file of AUDITED_PAGES) {
     describe(file, () => {
       it("exposes skip link, landmarks, and a single page h1", () => {
         const dom = loadPage(file);
@@ -88,6 +113,30 @@ describe("muxcore-docs page shell accessibility", () => {
         const violations = results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`);
         assert.deepEqual(violations, [], violations.join("\n"));
       });
+
+      if (PAGES_WITH_TABLES.has(file)) {
+        it("scopes table column headers", () => {
+          const dom = loadPage(file);
+          const { document } = dom.window;
+          const headers = document.querySelectorAll("main table thead th");
+          assert.ok(headers.length > 0, "page includes at least one data table");
+          for (const th of headers) {
+            assert.equal(th.getAttribute("scope"), "col", `missing scope on: ${th.textContent}`);
+          }
+        });
+      }
+
+      if (file === "Writing-Modules.html") {
+        it("labels static checklist checkboxes", () => {
+          const dom = loadPage(file);
+          const { document } = dom.window;
+          const inputs = document.querySelectorAll('main input[type="checkbox"]');
+          assert.ok(inputs.length > 0, "checklist renders checkbox markers");
+          for (const input of inputs) {
+            assert.ok(input.getAttribute("aria-label"), "checkbox exposes aria-label");
+          }
+        });
+      }
     });
   }
 });

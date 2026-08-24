@@ -8,7 +8,7 @@
 
 Each contract lists:
 - **What it does** — in plain language
-- **How modules get it** — Fabric field, auto-detected, or runtime discovery
+- **How modules get it** — gRPC / discovery, auto-detected capability, or runtime lookup
 - **The interface** — Go code for module developers
 
 > **Not a developer?** You don't need this page. It's a technical reference for people building modules. See [Module System](Module-System) for a friendlier overview.
@@ -468,7 +468,7 @@ type EventStore interface {
 
 ## gRPC Services (Sidecar Module Access)
 
-These gRPC services are exposed on the mesh address. Sidecar modules use them to access core services. Compiled-in modules use the Fabric equivalents directly.
+These gRPC services are exposed on the mesh address. Sidecar modules use them to access core services. In-process / compiled-in access uses the same contract interfaces via core’s registries (there is no separate `Fabric` type).
 
 ### StorageService
 

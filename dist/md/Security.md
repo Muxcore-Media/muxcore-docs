@@ -22,13 +22,12 @@ Authentication is **module-driven** — the core doesn't authenticate users dire
 
 | Auth Module | How It Works |
 |-------------|-------------|
-| **Local Accounts** | Username + password + optional 2FA, stored locally |
-| **API Tokens** | Scoped, revocable tokens for programmatic access |
-| **OAuth/OIDC** | Authentik, Authelia, Keycloak, Google, GitHub |
-| **LDAP / Active Directory** | Enterprise directory integration |
-| **Plex Auth** | Use your existing Plex account |
+| **Local Accounts** ([`auth-local`](https://github.com/Muxcore-Media/auth-local)) | Username + password + optional 2FA, stored locally |
+| **API Tokens** | Scoped, revocable tokens for programmatic access (via auth modules) |
+| **OAuth/OIDC** ([`auth-oidc`](https://github.com/Muxcore-Media/auth-oidc)) | Authentik, Authelia, Keycloak, Google, GitHub — **shipped** |
+| **LDAP / Active Directory** | Planned (`auth-ldap` not bootstrapped yet) |
 
-Multiple auth modules can be active simultaneously. Your family uses Plex auth. Your scripts use API tokens. Your admin uses OIDC.
+Multiple auth modules can be active simultaneously. Your family uses local accounts. Your scripts use API tokens. Your admin uses OIDC.
 
 ### API Tokens
 
@@ -164,7 +163,7 @@ Client → Internet → Reverse Proxy (10.0.0.1) → MuxCore
                                                 ↑ trusts XFF only from 10.0.0.0/8
 ```
 
-Configure via `server.trusted_proxies` in config (CIDR strings), or call `srv.SetTrustedProxies([]string{"10.0.0.0/8", "172.16.0.0/12"})`. Trusted CIDRs should be the immediate reverse-proxy hop(s).
+Configure via `server.trusted_proxies` in `muxcore.json` (CIDR strings) or `MUXCORE_SERVER_TRUSTED_PROXIES` (comma-separated). Empty keeps the loopback-only default. `muxcored` calls `SetTrustedProxies` at HTTP server init. Trusted CIDRs should be the immediate reverse-proxy hop(s).
 
 ### WAL and Audit Integrity
 
@@ -221,7 +220,7 @@ Or: `MUXCORE_CLUSTER_JOIN_TOKEN=my-sec...ken`
 
 ### Encryption at Rest
 
-Storage overlay modules handle encryption transparently. Data is encrypted before writing to any storage backend:
+Storage overlay / encryption modules can encrypt transparently **when an `EncryptionProvider` is registered and callers route through it**. Encryption is not a loom default for every Put:
 
 ```
 Module writes data → Encryption overlay encrypts → Storage backend stores ciphertext
@@ -244,11 +243,16 @@ Prefer a secrets module over putting API keys in config or env. Core still accep
 secrets.Get(ctx, "jackett_api_key")    // not os.Getenv("JACKETT_API_KEY")
 ```
 
-Supported module backends today include encrypted files (`secrets-file`). Vault and similar backends are planned.
+Supported module backends today:
+
+- **`secrets-file`** — encrypted local file store (default / minimal spool tags).
+- **`secrets-vault`** — client sidecar for HashiCorp Vault or OpenBao, Infisical, AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault. Does not embed a secrets server; configure `SECRETS_BACKEND` and the provider’s env vars.
+
+Run **only one** module advertising the `secrets` capability per mesh.
 
 ### Data Redaction
 
-Sensitive data (emails, tokens, IP addresses) is automatically stripped from logs and audit trails:
+Sensitive data (emails, tokens, IP addresses) can be stripped from logs and audit trails **when a `DataRedactionProvider` module is registered** (e.g. `data-redaction-pattern`) and logging paths use it — not automatic for every slog/audit call out of the box:
 
 ```go
 safe := redaction.Redact(ctx, data, []string{"email", "token", "ip_address"})
@@ -283,7 +287,7 @@ TLS handshake → extract CN from client cert → verify against RegisterRequest
 | Path | How It Works |
 |------|-------------|
 | **Core-spawned** | Module manager issues cert automatically → passes via `--muxcore-tls-cert` / `--muxcore-tls-key` |
-| **External** | Module calls `BootstrapRegister` with a one-time token → receives signed cert + key + CA |
+| **External** | Module calls `BootstrapRegister` with a one-time token → receives signed cert + key + CA (`BootstrapRegister` is on the mesh public allowlist; the token is the auth) |
 
 See [Module TLS Authentication](Module-TLS-Authentication) for the full architecture.
 
@@ -291,18 +295,34 @@ See [Module TLS Authentication](Module-TLS-Authentication) for the full architec
 
 - **Cryptographic binding** — module identity is tied to a TLS certificate, not a self-declared header
 - **No shared secrets** — each module gets its own keypair, not a shared token
-- **Cluster-wide trust** — the same CA is distributed to all cluster nodes, so modules can move between nodes
+- **Cluster-wide trust** — every node must use the **same** CA material today (shared `ca_cert_dir` / files); join does **not** distribute the CA private key (see [Module TLS Authentication](Module-TLS-Authentication))
 - **Revocation by expiration** — module certificates expire after 365 days and must be renewed
 
 ---
+
+## Operator host notes (TLS + auth URLs)
+
+On the MuxCore MVP host:
+
+- **Do not** set `MUXCORE_INSECURE_DISABLE_TLS=true` on staging/production. Dev/unit tests may still use it locally.
+- Staging cutover checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md) (`muxcore.staging.json` + `run-host-staging.sh`).
+- **Auth URL split:** browsers use the public auth base (e.g. `https://auth.gringotts`); server-side code exchange uses the internal base (e.g. `http://127.0.0.1:9401`). Never point admin-ui auth vars at the admin UI port itself.
+
+### Phase 2 / 3 identity & SIEM status
+
+| Item | Status |
+|------|--------|
+| OIDC/SSO | Shipped — [`auth-oidc`](https://github.com/Muxcore-Media/auth-oidc) |
+| LDAP / AD | Not started — track as future `auth-ldap` |
+| SIEM hooks | Phase 3 — consume core audit JSONL (`MUXCORE_AUDIT_PATH`) or a future audit-export module/webhook |
 
 ## Security Roadmap
 
 | Phase | Features |
 |-------|----------|
 | **MVP (Current)** | Local accounts auth, API tokens, RBAC, TLS encryption, mTLS enforcement, internal CA, audit logging, call policy |
-| **Phase 2** | OIDC/SSO, LDAP, module permission declarations |
-| **Phase 3** | Sandbox policies, network segmentation, SIEM integration |
+| **Phase 2** | OIDC/SSO via [`auth-oidc`](https://github.com/Muxcore-Media/auth-oidc) (**shipped**); LDAP/AD provider (**planned**); richer module permission declarations |
+| **Phase 3** | Sandbox policies, network segmentation, SIEM hooks (export audit JSONL / webhook to Splunk, Elastic, etc.) |
 
 ---
 

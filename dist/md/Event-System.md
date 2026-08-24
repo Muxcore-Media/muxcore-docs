@@ -29,10 +29,10 @@ Event types use dotted naming: `domain.action`. Core defines infrastructure even
 | `module.registered` | `ModuleRegisteredPayload` | Module registers successfully |
 | `module.unregistered` | `ModuleUnregisteredPayload` | Module unregisters |
 | `module.degraded` | `ModuleDegradedPayload` | Module health check fails |
-| `node.joined` | `NodeInfo` | New core joins the cluster |
-| `node.left` | `NodeID` | Core leaves cluster (evicted or graceful) |
-| `node.degraded` | `NodeDegradedPayload` | Node reports reduced capability |
-| `leader.changed` | `LeaderID` | Cluster leader changes |
+
+### Cluster channel types (not bus publishes today)
+
+`DiscoveryService.Watch` / cluster membership uses short `ClusterEventType` values (`node.joined`, `node.left`, `node.degraded`, `leader.changed`). Matching **bus** constants exist as `cluster.node.joined`, `cluster.node.left`, `cluster.node.degraded`, `cluster.leader.changed` (`pkg/contracts/cluster.go`) but core does **not** currently `Publish` those onto the event bus — subscribe to the discovery/cluster watch path for membership, not the bus, until that lands.
 
 ### Domain Events
 
@@ -151,6 +151,12 @@ reply, err := bus.Request(ctx, contracts.Event{
 ```
 
 The event bus creates a temporary subscription for `<type>.reply`, publishes the request event, and waits for a reply. The first reply wins. Timeout or context cancellation returns an error.
+
+---
+
+## Replay (event journal)
+
+gRPC `EventService.Replay` streams historical events from the WAL when `MUXCORE_EVENT_JOURNAL_PATH` is set (see [Configuration Reference](Configuration-Reference)). Without a journal path, replay is unavailable.
 
 ---
 
