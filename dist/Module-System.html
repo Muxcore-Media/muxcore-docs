@@ -4,21 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Module System · MuxCore Docs</title>
+  <meta name="description" content="Module System — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
-        <a href="Module-System.html" class="active">Module System</a>
+        <a href="Module-System.html" class="active" aria-current="page">Module System</a>
         <a href="Writing-Modules.html">Writing Modules</a>
         <a href="Contracts.html">Contracts Reference</a>
         <a href="Event-System.html">Event System</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Module System</h1>
 <p><strong>Everything in MuxCore is a module.</strong> Downloading, indexing, playback, transcoding, storage, notifications — every feature is a pluggable module behind a standard interface. This page explains how modules work, how they find each other, and every type of module you can add.</p>
 <hr>
@@ -133,19 +135,19 @@ resp, _ := regClient.Register(context.Background(), &amp;modulev1.RegisterReques
     return contracts.ModuleInfo{
         ID:        &quot;media-transcoder&quot;,
         Name:      &quot;FFmpeg Transcoder&quot;,
-        DependsOn: []string{&quot;storage-local&quot;, &quot;cache-redis&quot;},
+        DependsOn: []string{&quot;cache-redis&quot;},
     }
 }
 </code></pre>
 <h3>Dependency Ordering</h3>
 <p>Core uses <code>Registry.StartupOrder()</code> to compute a dependency-respecting module initialization order. Modules listed in <code>DependsOn</code> are guaranteed to be initialized before the module that depends on them.</p>
 <pre><code class="language-go">order, err := reg.StartupOrder()
-// Returns [&quot;storage-local&quot;, &quot;cache-redis&quot;, &quot;media-transcoder&quot;, ...]
+// Returns [&quot;cache-redis&quot;, &quot;media-transcoder&quot;, ...]
 </code></pre>
 <p>Cyclic dependencies are detected and return an error.</p>
 <h3>Reverse Dependency Lookup</h3>
 <p><code>Registry.DependencyGraph(id)</code> returns all modules that depend on a given module — useful for impact analysis before stopping or removing a module:</p>
-<pre><code class="language-go">dependents, err := reg.DependencyGraph(&quot;storage-local&quot;)
+<pre><code class="language-go">dependents, err := reg.DependencyGraph(&quot;cache-redis&quot;)
 // Returns [&quot;media-transcoder&quot;, &quot;media-movies&quot;, ...]
 </code></pre>
 <hr>
@@ -263,7 +265,7 @@ resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
 <hr>
 <h2>Services Discovered at Runtime</h2>
 <p>Infrastructure services are discovered at runtime via <code>DiscoveryService.FindByCapability()</code>. Core exposes module mesh services (<code>Discovery</code>, <code>Storage</code>, <code>Event</code>, <code>ModuleMesh</code>, <code>ModuleRegistration</code>) plus <code>Health</code> and admin services (<code>Spool</code>, <code>ModuleLifecycle</code>, <code>Audit</code>). Everything else is optional and module-provided (except core built-ins such as WorkerPool, DeadLetter, Retry, Idempotency, and EventStore).</p>
-<h3>Complete Service Discovery Table</h3>
+<h3>Common service discovery capabilities</h3>
 <table>
 <thead>
 <tr>
@@ -296,6 +298,12 @@ resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
 <td><code>&quot;cache.local&quot;</code></td>
 <td><code>CacheLayer</code></td>
 <td>Read-through storage caching</td>
+</tr>
+<tr>
+<td>Storage</td>
+<td><code>&quot;storage&quot;</code></td>
+<td><code>StorageProvider</code></td>
+<td>Blob / object storage backends</td>
 </tr>
 <tr>
 <td>Metrics</td>
@@ -334,10 +342,34 @@ resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
 <td>Inter-module access control</td>
 </tr>
 <tr>
+<td>Publish Policy</td>
+<td><code>&quot;publish.policy&quot;</code></td>
+<td><code>PublishPolicyProvider</code></td>
+<td>Event publication access control</td>
+</tr>
+<tr>
 <td>Identity</td>
 <td><code>&quot;identity&quot;</code></td>
 <td><code>IdentityProvider</code></td>
 <td>Extract caller identity from context</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td><code>&quot;auth&quot;</code></td>
+<td><code>AuthProvider</code></td>
+<td>Authenticate users / tokens</td>
+</tr>
+<tr>
+<td>Authorizer</td>
+<td><code>&quot;authorizer&quot;</code></td>
+<td><code>Authorizer</code></td>
+<td>Permission checks</td>
+</tr>
+<tr>
+<td>Rate Limit</td>
+<td><code>&quot;ratelimit&quot;</code></td>
+<td><code>RateLimiterProvider</code></td>
+<td>Throttle API requests</td>
 </tr>
 <tr>
 <td>Logging</td>
@@ -406,13 +438,37 @@ resp, _ := mesh.Call(ctx, &amp;meshv1.CallRequest{
 <td>Multi-step tapestry orchestration</td>
 </tr>
 <tr>
-<td>Publish Policy</td>
-<td><code>&quot;publish.policy&quot;</code></td>
-<td><code>PublishPolicyProvider</code></td>
-<td>Event publication access control</td>
+<td>Worker Pool</td>
+<td><code>&quot;worker.pool&quot;</code></td>
+<td><code>WorkerPool</code></td>
+<td>Distributed task execution</td>
+</tr>
+<tr>
+<td>Scheduler</td>
+<td><code>&quot;scheduler&quot;</code></td>
+<td><code>Scheduler</code></td>
+<td>Cron-style scheduling</td>
+</tr>
+<tr>
+<td>Health Monitor</td>
+<td><code>&quot;health.monitor&quot;</code></td>
+<td><code>HealthMonitor</code></td>
+<td>Periodic module health checks</td>
+</tr>
+<tr>
+<td>Backup</td>
+<td><code>&quot;backup&quot;</code></td>
+<td><code>BackupProvider</code></td>
+<td>Backup / restore hooks</td>
+</tr>
+<tr>
+<td>Spool Resolver</td>
+<td><code>&quot;spool.resolver&quot;</code></td>
+<td><code>SpoolResolver</code></td>
+<td>Resolve / fetch spool module sources</td>
 </tr>
 </tbody></table>
-<p>If no module provides a capability, callers handle it gracefully — using a default, falling back to a simpler mode, or logging a warning. Every service is optional.</p>
+<p>Canonical constants: <code>pkg/contracts/capabilities.go</code>. Executor capabilities use the <code>&quot;executor.&quot;</code> prefix. If no module provides a capability, callers handle it gracefully — using a default, falling back to a simpler mode, or logging a warning. Every service is optional.</p>
 <hr>
 <h2>Types of Modules</h2>
 <h3>Core Infrastructure</h3>

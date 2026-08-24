@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Storage · MuxCore Docs</title>
+  <meta name="description" content="Storage — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -22,7 +24,7 @@
         <a href="Writing-Modules.html">Writing Modules</a>
         <a href="Contracts.html">Contracts Reference</a>
         <a href="Event-System.html">Event System</a>
-        <a href="Storage.html" class="active">Storage</a>
+        <a href="Storage.html" class="active" aria-current="page">Storage</a>
         <a href="Workflow-Engine.html">Workflow Engine</a>
         <a href="Deployment.html">Deployment</a>
         <a href="Security.html">Security</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Storage Abstraction</h1>
 <p><strong>Storage in MuxCore is not about files and folders.</strong> It&#39;s about capabilities — what a storage backend can do — and the system adapts around them. Modules never touch filesystem paths. Everything goes through object IDs.</p>
 <hr>
@@ -74,7 +76,7 @@ Transcoder reads from:  /transcodes/temp/
     List(ctx, prefix string) ([]ObjectInfo, error)
 }
 </code></pre>
-<p>Every storage backend implements this. Today core ships a <strong>local filesystem</strong> provider; additional backends (S3, Ceph, etc.) arrive as modules when available.</p>
+<p>Every storage backend implements this. Core registers a <strong>built-in local filesystem</strong> provider only when <code>MUXCORE_STORAGE_DIR</code> is set (laptop demo / installer). Otherwise modules wait for a storage module (<code>storage-s3</code>, <code>storage-ceph</code>, <code>storage-overlay</code>, …).</p>
 <h3>Layer 2: The Orchestrator</h3>
 <p>The <code>StorageOrchestrator</code> sits between modules and storage providers. It:</p>
 <ul>
@@ -92,11 +94,10 @@ Transcoder reads from:  /transcodes/temp/
     Move(ctx, src, dst string) error
     Stream(ctx, key string, offset, length int64) (io.ReadCloser, error)
     CapabilityCheck(ctx, key string) ([]string, error)
-    Promote(ctx, key string) error
-    Relegate(ctx, key string) error
-    // ...
+    // Exists, Stat, List — see pkg/contracts/storage.go
 }
 </code></pre>
+<p><code>Promote</code> / <code>Relegate</code> live on the optional <strong><code>TieredProvider</code></strong> capability interface (implemented by tiered storage modules), not on <code>StorageOrchestrator</code>.</p>
 <p>List operations accept an empty prefix to list all objects. <code>CapabilityCheck</code> accepts an empty key to check capabilities of the default provider.</p>
 <h3>Layer 3: Media Library</h3>
 <p>The media library maps logical entities to physical storage:</p>
@@ -244,7 +245,7 @@ S3 Provider          ← actual storage
 </ul>
 <hr>
 <h2>Storage Policies</h2>
-<p>Programmatic routing is live: the orchestrator evaluates ordered <code>RoutingPolicy</code> rules (first match wins) via <code>AddPolicy</code> / <code>SetPolicies</code>. Put placement matches on object <strong>prefix</strong> and/or <strong>label</strong> metadata; <strong>age_days</strong> rules apply only to background migration (relegate), not Put. Core loads <code>storage.policies</code> from config at startup (<code>PoliciesFromConfig</code>).</p>
+<p>Prefix routing is live on the concrete orchestrator: ordered <code>RoutingPolicy</code> rules (first match wins) via <code>AddPolicy</code>. Each policy has <code>Name</code>, <code>Prefix</code>, and <code>Provider</code> only — there is no <code>SetPolicies</code>, no label/<code>age_days</code> matcher, and no <code>storage.policies</code> config JSON loader today.</p>
 <pre><code class="language-go">orch.AddPolicy(storage.RoutingPolicy{
     Name:     &quot;hot&quot;,
     Prefix:   &quot;hot/&quot;,
@@ -252,34 +253,11 @@ S3 Provider          ← actual storage
 })
 orch.AddPolicy(storage.RoutingPolicy{
     Name:     &quot;archive&quot;,
-    AgeDays:  365,
-    Tier:     contracts.StorageTierCold,
+    Prefix:   &quot;archive/&quot;,
+    Provider: &quot;cold-hdd&quot;,
 })
 </code></pre>
-<p>Config shape (<code>storage.policies</code> in core config JSON):</p>
-<pre><code class="language-json">{
-  &quot;storage&quot;: {
-    &quot;policies&quot;: [
-      {
-        &quot;name&quot;: &quot;temp&quot;,
-        &quot;match&quot;: { &quot;label&quot;: &quot;transcoding-temp&quot; },
-        &quot;provider&quot;: &quot;local-ssd&quot;
-      },
-      {
-        &quot;name&quot;: &quot;hot-prefix&quot;,
-        &quot;match&quot;: { &quot;prefix&quot;: &quot;hot/&quot; },
-        &quot;provider&quot;: &quot;fast-nvme&quot;
-      },
-      {
-        &quot;name&quot;: &quot;cold-age&quot;,
-        &quot;match&quot;: { &quot;age_days&quot;: 365 },
-        &quot;tier&quot;: &quot;cold&quot;
-      }
-    ]
-  }
-}
-</code></pre>
-<p><strong>Still in progress:</strong> declarative <code>media_type</code> / quality-based YAML rules (the aspirational media-aware policy language). Until that lands, route by prefix/label/age as above.</p>
+<p><strong>Not implemented yet:</strong> config-driven <code>storage.policies</code>, label/age matchers, and declarative media_type / quality-based YAML rules. Until those land, call <code>AddPolicy</code> from code (or rely on a single default provider).</p>
 <hr>
 <h2>Storage Scenarios (Target Architecture)</h2>
 <h3>Hot/Cold Tiering</h3>

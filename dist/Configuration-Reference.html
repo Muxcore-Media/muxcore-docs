@@ -4,18 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Configuration Reference · MuxCore Docs</title>
+  <meta name="description" content="Configuration Reference — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
-        <a href="Configuration-Reference.html" class="active">Configuration Reference</a>
+        <a href="Configuration-Reference.html" class="active" aria-current="page">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
         <a href="Module-System.html">Module System</a>
@@ -35,9 +37,10 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Configuration Reference</h1>
 <p><strong>Every configuration option in MuxCore</strong> — config file keys, environment variables, CLI flags, and their defaults. Includes the <strong>laptop demo / installer</strong> env knobs (<code>DOWNLOADER_ENGINE=fixture</code>, <code>TMDB_FIXTURE</code>, mesh dial local, ports) used by <code>_mvp</code> and <code>muxcore-installer</code>.</p>
+<p>For the full gRPC/HTTP host-port table (MVP modules + collision remaps), see <strong><a href="Port-Map.html">Port Map</a></strong>.</p>
 <hr>
 <h2>Config File (<code>muxcore.json</code>)</h2>
 <p>Place <code>muxcore.json</code> in the working directory, or override the path with <code>MUXCORE_CONFIG</code>.</p>
@@ -51,6 +54,11 @@
 </tr>
 </thead>
 <tbody><tr>
+<td><code>version</code></td>
+<td>string</td>
+<td>Config schema version; only <code>&quot;1&quot;</code> is valid (empty means v1)</td>
+</tr>
+<tr>
 <td><code>server</code></td>
 <td><code>ServerConfig</code></td>
 <td>HTTP server settings</td>
@@ -129,8 +137,8 @@
 <tr>
 <td><code>trusted_proxies</code></td>
 <td>[]string</td>
-<td>loopback (<code>127.0.0.0/8</code>, <code>::1/128</code>) when empty</td>
-<td>CIDRs whose <code>X-Forwarded-For</code> is trusted; no env override</td>
+<td>loopback only when empty</td>
+<td>CIDRs whose <code>X-Forwarded-For</code> is trusted; also <code>MUXCORE_SERVER_TRUSTED_PROXIES</code></td>
 </tr>
 </tbody></table>
 <h3><code>grpc</code></h3>
@@ -177,7 +185,7 @@
 <td><code>ca_cert_dir</code></td>
 <td>string</td>
 <td><code>&quot;&quot;</code></td>
-<td>Directory for internal auto-generated CA (<code>ca.crt</code> + <code>ca.key</code>). Defaults to <code>&lt;data-dir&gt;/ca/</code></td>
+<td>Directory for internal auto-generated CA (<code>ca.crt</code> + <code>ca.key</code>). When empty and auto-mTLS runs, core uses <code>~/.muxcore/ca</code></td>
 </tr>
 <tr>
 <td><code>seed_nodes</code></td>
@@ -424,6 +432,11 @@
 <td><code>server.write_timeout</code></td>
 <td>(seconds)</td>
 </tr>
+<tr>
+<td><code>MUXCORE_SERVER_TRUSTED_PROXIES</code></td>
+<td><code>server.trusted_proxies</code></td>
+<td>comma-separated CIDRs; empty = loopback only</td>
+</tr>
 </tbody></table>
 <h3>gRPC</h3>
 <table>
@@ -473,6 +486,11 @@
 <td><code>MUXCORE_CLUSTER_JOIN_TOKEN</code></td>
 <td><code>grpc.join_token</code></td>
 <td>fallback if <code>MUXCORE_GRPC_JOIN_TOKEN</code> unset</td>
+</tr>
+<tr>
+<td><code>MUXCORE_GRPC_MAX_MESSAGE_SIZE_MB</code></td>
+<td><code>grpc.max_message_size_mb</code></td>
+<td><code>32</code></td>
 </tr>
 <tr>
 <td><code>MUXCORE_INSECURE_DISABLE_TLS</code></td>
@@ -543,6 +561,46 @@
 <td><code>MUXCORE_AUDIT_PATH</code></td>
 <td><code>audit.path</code></td>
 <td><code>&quot;&quot;</code> (disabled)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_AUDIT_PATH_FILE</code></td>
+<td><code>audit.path</code></td>
+<td>path to a file whose contents become <code>audit.path</code> (overrides <code>MUXCORE_AUDIT_PATH</code> when readable)</td>
+</tr>
+<tr>
+<td><code>MUXCORE_AUDIT_MAX_SIZE_MB</code></td>
+<td><code>audit.max_size_mb</code></td>
+<td><code>100</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_AUDIT_MAX_ROTATED_FILES</code></td>
+<td><code>audit.max_rotated_files</code></td>
+<td><code>5</code></td>
+</tr>
+</tbody></table>
+<h3>Storage timeouts</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Config Key</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MUXCORE_STORAGE_READ_TIMEOUT</code></td>
+<td><code>storage.read_timeout_seconds</code></td>
+<td><code>30</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_STORAGE_WRITE_TIMEOUT</code></td>
+<td><code>storage.write_timeout_seconds</code></td>
+<td><code>300</code></td>
+</tr>
+<tr>
+<td><code>MUXCORE_STORAGE_DELETE_TIMEOUT</code></td>
+<td><code>storage.delete_timeout_seconds</code></td>
+<td><code>30</code></td>
 </tr>
 </tbody></table>
 <h3>Spool</h3>
@@ -710,6 +768,7 @@
 </tbody></table>
 <p>Also leave <code>TMDB_API_KEY</code> unset when <code>TMDB_FIXTURE=1</code>. Optional live TMDB is operator choice later, not part of the demo gate.</p>
 <h3>Mesh address &amp; client dial targets</h3>
+<p>These are <strong>client dial targets</strong> for sidecars, smoke scripts, and host tooling. They do <strong>not</strong> change <code>muxcored</code>’s gRPC listen address (<code>grpc.addr</code> / default <code>:9090</code> comes from config file / <code>Default()</code> only — there is no <code>MUXCORE_*</code> env that sets the loom listen port).</p>
 <table>
 <thead>
 <tr>
@@ -721,12 +780,12 @@
 <tbody><tr>
 <td><code>MUXCORE_MESH_ADDR</code></td>
 <td><code>127.0.0.1:9090</code></td>
-<td>Core gRPC mesh as seen by smoke / listmodules / host scripts (not a loom config key; scripts and modules also accept <code>MUXCORE_GRPC_ADDR</code>).</td>
+<td>Where operators / smoke / listmodules dial the core mesh</td>
 </tr>
 <tr>
 <td><code>MUXCORE_GRPC_ADDR</code></td>
 <td>same mesh host:port</td>
-<td>Sidecar SDK: address of core’s gRPC mesh to register against.</td>
+<td>Sidecar SDK: address of core’s gRPC mesh to register against</td>
 </tr>
 </tbody></table>
 <h3>Smoke URLs &amp; timeouts</h3>
@@ -965,6 +1024,11 @@ MVP_ADMIN_PASSWORD=admin-dev-only
 <td>Spool URL to fetch tags from</td>
 </tr>
 <tr>
+<td><code>--dry-run</code></td>
+<td>false</td>
+<td>Validate config, TLS certs, and spool connectivity, then exit 0 on success</td>
+</tr>
+<tr>
 <td><code>--version</code></td>
 <td>—</td>
 <td>Print version and exit</td>
@@ -979,7 +1043,10 @@ MVP_ADMIN_PASSWORD=admin-dev-only
 <p><strong>Applied live (no restart needed):</strong></p>
 <ul>
 <li><code>log.level</code>, <code>log.format</code></li>
-<li><code>grpc.seed_nodes</code></li>
+</ul>
+<p><strong>Detected on reload but not applied (restart required):</strong></p>
+<ul>
+<li><code>grpc.seed_nodes</code> — change is logged; core does not re-join cluster peers until restart</li>
 </ul>
 <p><strong>Requires restart (warning logged, change NOT applied):</strong></p>
 <ul>

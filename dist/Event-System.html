@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Event System · MuxCore Docs</title>
+  <meta name="description" content="Event System — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -21,7 +23,7 @@
         <a href="Module-System.html">Module System</a>
         <a href="Writing-Modules.html">Writing Modules</a>
         <a href="Contracts.html">Contracts Reference</a>
-        <a href="Event-System.html" class="active">Event System</a>
+        <a href="Event-System.html" class="active" aria-current="page">Event System</a>
         <a href="Storage.html">Storage</a>
         <a href="Workflow-Engine.html">Workflow Engine</a>
         <a href="Deployment.html">Deployment</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Event System</h1>
 <p><strong>Events (signals) are how modules communicate without knowing about each other.</strong> This page explains the event bus, event types, how to publish and subscribe, and module lifecycle event management.</p>
 <hr>
@@ -74,27 +76,9 @@ Notification module receives it → sends a Discord message
 <td><code>ModuleDegradedPayload</code></td>
 <td>Module health check fails</td>
 </tr>
-<tr>
-<td><code>node.joined</code></td>
-<td><code>NodeInfo</code></td>
-<td>New core joins the cluster</td>
-</tr>
-<tr>
-<td><code>node.left</code></td>
-<td><code>NodeID</code></td>
-<td>Core leaves cluster (evicted or graceful)</td>
-</tr>
-<tr>
-<td><code>node.degraded</code></td>
-<td><code>NodeDegradedPayload</code></td>
-<td>Node reports reduced capability</td>
-</tr>
-<tr>
-<td><code>leader.changed</code></td>
-<td><code>LeaderID</code></td>
-<td>Cluster leader changes</td>
-</tr>
 </tbody></table>
+<h3>Cluster channel types (not bus publishes today)</h3>
+<p><code>DiscoveryService.Watch</code> / cluster membership uses short <code>ClusterEventType</code> values (<code>node.joined</code>, <code>node.left</code>, <code>node.degraded</code>, <code>leader.changed</code>). Matching <strong>bus</strong> constants exist as <code>cluster.node.joined</code>, <code>cluster.node.left</code>, <code>cluster.node.degraded</code>, <code>cluster.leader.changed</code> (<code>pkg/contracts/cluster.go</code>) but core does <strong>not</strong> currently <code>Publish</code> those onto the event bus — subscribe to the discovery/cluster watch path for membership, not the bus, until that lands.</p>
 <h3>Domain Events</h3>
 <p>Media/download event type constants live in core <code>pkg/contracts</code> (e.g. <code>media_events.go</code>). Examples:</p>
 <ul>
@@ -180,6 +164,9 @@ bus.UnsubscribeAll(ctx, m.id)  // removes all subscriptions tagged with this mod
 }, 5*time.Second)
 </code></pre>
 <p>The event bus creates a temporary subscription for <code>&lt;type&gt;.reply</code>, publishes the request event, and waits for a reply. The first reply wins. Timeout or context cancellation returns an error.</p>
+<hr>
+<h2>Replay (event journal)</h2>
+<p>gRPC <code>EventService.Replay</code> streams historical events from the WAL when <code>MUXCORE_EVENT_JOURNAL_PATH</code> is set (see <a href="Configuration-Reference.html">Configuration Reference</a>). Without a journal path, replay is unavailable.</p>
 <hr>
 <h2>Event Handler Guidelines</h2>
 <ul>

@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Workflow Engine · MuxCore Docs</title>
+  <meta name="description" content="Workflow Engine — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -23,7 +25,7 @@
         <a href="Contracts.html">Contracts Reference</a>
         <a href="Event-System.html">Event System</a>
         <a href="Storage.html">Storage</a>
-        <a href="Workflow-Engine.html" class="active">Workflow Engine</a>
+        <a href="Workflow-Engine.html" class="active" aria-current="page">Workflow Engine</a>
         <a href="Deployment.html">Deployment</a>
         <a href="Security.html">Security</a>
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Workflow Engine</h1>
 <p><strong>Workflows (tapestries) are MuxCore&#39;s killer feature.</strong> They&#39;re multi-step automation pipelines that coordinate many modules to accomplish a goal — like acquiring a movie from request to notification — without hardcoding any step.</p>
 <blockquote>
@@ -53,7 +55,7 @@
 <p>Each step is handled by a different module. The workflow engine orchestrates — it doesn&#39;t implement any step directly.</p>
 <hr>
 <h2>A Real Example</h2>
-<p>Here&#39;s a tapestry for importing a movie:</p>
+<p>Here&#39;s the seeded <code>movie-request</code> tapestry (JSON in <code>workflow-tapestry</code>; YAML below is equivalent):</p>
 <pre><code class="language-yaml">id: movie-request
 name: &quot;Movie Request Pipeline&quot;
 steps:
@@ -62,30 +64,30 @@ steps:
       kind: module
       ref: metadata-tmdb
     retry: 3
-    timeout: 30
+    timeout_seconds: 30
 
   - name: indexer-search
     handler:
       kind: capability
       ref: indexer
     retry: 2
-    timeout: 60
+    timeout_seconds: 60
     depends_on: [metadata-lookup]
 
   - name: download
     handler:
-      kind: module
-      ref: downloader-native-torrent
+      kind: capability
+      ref: downloader
     retry: 1
-    timeout: 0       # no timeout — downloads can take hours
+    timeout_seconds: 0       # no timeout — downloads can take hours
     depends_on: [indexer-search]
 
   - name: library-import
     handler:
       kind: module
-      ref: media-movies
+      ref: media-scanner
     retry: 1
-    timeout: 60
+    timeout_seconds: 60
     depends_on: [download]
 
   - name: notify
@@ -93,7 +95,7 @@ steps:
       kind: capability
       ref: notification
     retry: 2
-    timeout: 10
+    timeout_seconds: 10
     depends_on: [library-import]
 </code></pre>
 <hr>

@@ -78,10 +78,13 @@ function parseSidebar(md, pages) {
 
 function layout({ title, body, nav, active }) {
   const navHtml = nav
-    .map(
-      (item) =>
-        `<a href="${item.href}"${item.page === active ? ' class="active"' : ""}>${item.label}</a>`,
-    )
+    .map((item) => {
+      const isActive = item.page === active;
+      const attrs = isActive
+        ? ' class="active" aria-current="page"'
+        : "";
+      return `<a href="${item.href}"${attrs}>${item.label}</a>`;
+    })
     .join("\n        ");
 
   return `<!DOCTYPE html>
@@ -90,18 +93,20 @@ function layout({ title, body, nav, active }) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${title} · MuxCore Docs</title>
+  <meta name="description" content="${title} — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         ${navHtml}
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       ${body}
     </main>
   </div>
@@ -157,10 +162,10 @@ function main() {
     const md = readFileSync(join(src, file), "utf8");
     let body = marked.parse(md, { async: false });
     body = rewriteWikiLinks(body, pages);
-    // Soften broken relative TASKS.md links into plain text note
+    // Workspace-only TASKS.md links are not routable in the static site.
     body = body.replace(
-      /href="\.\.\/TASKS\.md"/g,
-      'href="#" title="See workspace TASKS.md"',
+      /<a href="\.\.\/TASKS\.md">([\s\S]*?)<\/a>/g,
+      '<span class="workspace-file-ref" title="See workspace TASKS.md">$1</span>',
     );
 
     const html = layout({

@@ -6,10 +6,15 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "serve": "npx --yes serve dist -l 8080"
+    "serve": "npx --yes serve dist -l 8080",
+    "test": "node --test test/*.test.mjs"
   },
   "license": "MIT",
   "dependencies": {
     "marked": "^15.0.12"
+  },
+  "devDependencies": {
+    "axe-core": "^4.10.3",
+    "jsdom": "^26.1.0"
   }
 }

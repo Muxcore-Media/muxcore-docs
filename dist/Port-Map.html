@@ -4,19 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Port Map · MuxCore Docs</title>
+  <meta name="description" content="Port Map — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
-        <a href="Port-Map.html" class="active">Port Map</a>
+        <a href="Port-Map.html" class="active" aria-current="page">Port Map</a>
         <a href="Architecture.html">Architecture</a>
         <a href="Module-System.html">Module System</a>
         <a href="Writing-Modules.html">Writing Modules</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Port Map</h1>
 <p><strong>Canonical host-port assignments for the laptop MVP stack</strong> used by <a href="../muxcore-installer/"><code>muxcore-installer</code></a> and the <code>_mvp</code> reference lab. Prefer these numbers over older README snippets that still mention historical defaults.</p>
 <p>Sources of truth for what actually starts:</p>
@@ -178,7 +180,7 @@
 <td>gRPC</td>
 <td><strong>9102</strong></td>
 <td><code>:9102</code></td>
-<td><code>PUBLISH_POLICY_GRPC_ADDR</code></td>
+<td>— (binary default; no env override)</td>
 <td></td>
 </tr>
 <tr>
@@ -372,11 +374,39 @@
 <td>Keeps <code>:9480</code>; do not put piratebay here</td>
 </tr>
 <tr>
+<td><code>media-custom-formats</code></td>
+<td>gRPC</td>
+<td><strong>9490</strong></td>
+<td><code>FORMATS_GRPC_ADDR</code></td>
+<td>Scoring peer; adjacent to ffprobe/indexers</td>
+</tr>
+<tr>
+<td><code>media-rename</code></td>
+<td>gRPC</td>
+<td><strong>9510</strong></td>
+<td><code>RENAME_GRPC_ADDR</code></td>
+<td>Binary default and host/<code>_mvp</code> map agree on <strong><code>:9510</code></strong></td>
+</tr>
+<tr>
 <td><code>notification-apprise</code></td>
 <td>gRPC</td>
 <td><strong>9445</strong></td>
 <td><code>NOTIFY_GRPC_ADDR</code></td>
 <td>Alternate notifier; not co-started with default on same addr</td>
+</tr>
+<tr>
+<td><code>auth-oidc</code></td>
+<td>gRPC</td>
+<td><strong>9410</strong></td>
+<td><code>AUTH_OIDC_GRPC_ADDR</code></td>
+<td>Fills the slot freed when metadata moved to <code>:9411</code></td>
+</tr>
+<tr>
+<td><code>auth-oidc</code></td>
+<td>HTTP</td>
+<td><strong>9412</strong></td>
+<td><code>AUTH_OIDC_HTTP_ADDR</code></td>
+<td>Remapped off metadata gRPC <code>:9411</code></td>
 </tr>
 </tbody></table>
 <hr>
@@ -425,7 +455,19 @@
 <td><code>:9410</code> (gRPC)</td>
 <td><strong><code>:9411</code></strong></td>
 <td><code>metadata-tmdb</code></td>
-<td>Frees <code>:9410</code> for <code>auth-oidc</code> (and avoids stale “movies on 9410” examples).</td>
+<td>Frees <code>:9410</code> for <code>auth-oidc</code> gRPC.</td>
+</tr>
+<tr>
+<td><code>:9411</code> (HTTP)</td>
+<td><strong><code>:9412</code></strong></td>
+<td><code>auth-oidc</code> HTTP</td>
+<td>Avoids collision with metadata-tmdb gRPC on <code>:9411</code>.</td>
+</tr>
+<tr>
+<td><code>:9500</code> (gRPC)</td>
+<td><strong><code>:9510</code></strong></td>
+<td><code>media-rename</code></td>
+<td>Binary default and host/<code>_mvp</code> both use <code>:9510</code>.</td>
 </tr>
 </tbody></table>
 <p>If you run modules <strong>without</strong> the installer/<code>_mvp</code> env wrappers, set the override env vars explicitly — do not assume every published binary’s README matches this map until you verify <code>internal/module.go</code>.</p>
@@ -543,7 +585,7 @@
 <li><a href="Configuration-Reference.html">Configuration Reference</a> — full env list</li>
 <li><a href="Getting-Started.html">Getting Started</a> — laptop install paths</li>
 <li><a href="Deployment.html">Deployment</a> — production TLS (no insecure-disable)</li>
-<li>Workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> — product checklist</li>
+<li>Workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> — product checklist</li>
 </ul>
 
     </main>

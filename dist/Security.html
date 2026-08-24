@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Security · MuxCore Docs</title>
+  <meta name="description" content="Security — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -25,7 +27,7 @@
         <a href="Storage.html">Storage</a>
         <a href="Workflow-Engine.html">Workflow Engine</a>
         <a href="Deployment.html">Deployment</a>
-        <a href="Security.html" class="active">Security</a>
+        <a href="Security.html" class="active" aria-current="page">Security</a>
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Security Model</h1>
 <p><strong>Security is woven into every layer of MuxCore.</strong> Most self-hosted media software treats security as an afterthought — local-only access, no audit trail, hardcoded API keys. MuxCore builds authentication, authorization, encryption, and audit logging into the platform from day one.</p>
 <hr>
@@ -59,27 +61,23 @@
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Local Accounts</strong></td>
+<td><strong>Local Accounts</strong> (<a href="https://github.com/Muxcore-Media/auth-local"><code>auth-local</code></a>)</td>
 <td>Username + password + optional 2FA, stored locally</td>
 </tr>
 <tr>
 <td><strong>API Tokens</strong></td>
-<td>Scoped, revocable tokens for programmatic access</td>
+<td>Scoped, revocable tokens for programmatic access (via auth modules)</td>
 </tr>
 <tr>
-<td><strong>OAuth/OIDC</strong></td>
-<td>Authentik, Authelia, Keycloak, Google, GitHub</td>
+<td><strong>OAuth/OIDC</strong> (<a href="https://github.com/Muxcore-Media/auth-oidc"><code>auth-oidc</code></a>)</td>
+<td>Authentik, Authelia, Keycloak, Google, GitHub — <strong>shipped</strong></td>
 </tr>
 <tr>
 <td><strong>LDAP / Active Directory</strong></td>
-<td>Enterprise directory integration</td>
-</tr>
-<tr>
-<td><strong>Plex Auth</strong></td>
-<td>Use your existing Plex account</td>
+<td>Planned (<code>auth-ldap</code> not bootstrapped yet)</td>
 </tr>
 </tbody></table>
-<p>Multiple auth modules can be active simultaneously. Your family uses Plex auth. Your scripts use API tokens. Your admin uses OIDC.</p>
+<p>Multiple auth modules can be active simultaneously. Your family uses local accounts. Your scripts use API tokens. Your admin uses OIDC.</p>
 <h3>API Tokens</h3>
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;readonly-monitor&quot;,
@@ -195,7 +193,7 @@ result, err := meshv1.NewModuleMeshClient(conn).Call(ctx, &amp;meshv1.CallReques
 <pre><code>Client → Internet → Reverse Proxy (10.0.0.1) → MuxCore
                                                 ↑ trusts XFF only from 10.0.0.0/8
 </code></pre>
-<p>Configure via <code>server.trusted_proxies</code> in config (CIDR strings), or call <code>srv.SetTrustedProxies([]string{&quot;10.0.0.0/8&quot;, &quot;172.16.0.0/12&quot;})</code>. Trusted CIDRs should be the immediate reverse-proxy hop(s).</p>
+<p>Configure via <code>server.trusted_proxies</code> in <code>muxcore.json</code> (CIDR strings) or <code>MUXCORE_SERVER_TRUSTED_PROXIES</code> (comma-separated). Empty keeps the loopback-only default. <code>muxcored</code> calls <code>SetTrustedProxies</code> at HTTP server init. Trusted CIDRs should be the immediate reverse-proxy hop(s).</p>
 <h3>WAL and Audit Integrity</h3>
 <p>The audit logger fsyncs each entry by default. The event WAL exposes <code>Flush</code> / <code>Sync</code> / <code>FlushSync</code> APIs and syncs on segment rotation; it does not fsync on every individual event write unless callers flush.</p>
 <h3>Health Endpoint Hardening</h3>
@@ -229,7 +227,7 @@ result, err := meshv1.NewModuleMeshClient(conn).Call(ctx, &amp;meshv1.CallReques
 <hr>
 <h2>Data Protection</h2>
 <h3>Encryption at Rest</h3>
-<p>Storage overlay modules handle encryption transparently. Data is encrypted before writing to any storage backend:</p>
+<p>Storage overlay / encryption modules can encrypt transparently <strong>when an <code>EncryptionProvider</code> is registered and callers route through it</strong>. Encryption is not a loom default for every Put:</p>
 <pre><code>Module writes data → Encryption overlay encrypts → Storage backend stores ciphertext
 Module reads data ← Encryption overlay decrypts ← Storage backend returns ciphertext
 </code></pre>
@@ -242,9 +240,14 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 <p>Prefer a secrets module over putting API keys in config or env. Core still accepts some env overlays (e.g. <code>MUXCORE_DATABASE_URL</code>) for bootstrap; production credentials should live in a <code>SecretsProvider</code> module:</p>
 <pre><code class="language-go">secrets.Get(ctx, &quot;jackett_api_key&quot;)    // not os.Getenv(&quot;JACKETT_API_KEY&quot;)
 </code></pre>
-<p>Supported module backends today include encrypted files (<code>secrets-file</code>). Vault and similar backends are planned.</p>
+<p>Supported module backends today:</p>
+<ul>
+<li><strong><code>secrets-file</code></strong> — encrypted local file store (default / minimal spool tags).</li>
+<li><strong><code>secrets-vault</code></strong> — client sidecar for HashiCorp Vault or OpenBao, Infisical, AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault. Does not embed a secrets server; configure <code>SECRETS_BACKEND</code> and the provider’s env vars.</li>
+</ul>
+<p>Run <strong>only one</strong> module advertising the <code>secrets</code> capability per mesh.</p>
 <h3>Data Redaction</h3>
-<p>Sensitive data (emails, tokens, IP addresses) is automatically stripped from logs and audit trails:</p>
+<p>Sensitive data (emails, tokens, IP addresses) can be stripped from logs and audit trails <strong>when a <code>DataRedactionProvider</code> module is registered</strong> (e.g. <code>data-redaction-pattern</code>) and logging paths use it — not automatic for every slog/audit call out of the box:</p>
 <pre><code class="language-go">safe := redaction.Redact(ctx, data, []string{&quot;email&quot;, &quot;token&quot;, &quot;ip_address&quot;})
 // {&quot;user_id&quot;: &quot;abc123&quot;, &quot;email&quot;: &quot;***REDACTED***&quot;, &quot;action&quot;: &quot;login&quot;}
 </code></pre>
@@ -277,7 +280,7 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 </tr>
 <tr>
 <td><strong>External</strong></td>
-<td>Module calls <code>BootstrapRegister</code> with a one-time token → receives signed cert + key + CA</td>
+<td>Module calls <code>BootstrapRegister</code> with a one-time token → receives signed cert + key + CA (<code>BootstrapRegister</code> is on the mesh public allowlist; the token is the auth)</td>
 </tr>
 </tbody></table>
 <p>See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> for the full architecture.</p>
@@ -285,10 +288,38 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 <ul>
 <li><strong>Cryptographic binding</strong> — module identity is tied to a TLS certificate, not a self-declared header</li>
 <li><strong>No shared secrets</strong> — each module gets its own keypair, not a shared token</li>
-<li><strong>Cluster-wide trust</strong> — the same CA is distributed to all cluster nodes, so modules can move between nodes</li>
+<li><strong>Cluster-wide trust</strong> — every node must use the <strong>same</strong> CA material today (shared <code>ca_cert_dir</code> / files); join does <strong>not</strong> distribute the CA private key (see <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>)</li>
 <li><strong>Revocation by expiration</strong> — module certificates expire after 365 days and must be renewed</li>
 </ul>
 <hr>
+<h2>Operator host notes (TLS + auth URLs)</h2>
+<p>On the MuxCore MVP host:</p>
+<ul>
+<li><strong>Do not</strong> set <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> on staging/production. Dev/unit tests may still use it locally.</li>
+<li>Staging cutover checklist: <a href="../_mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></a> (<code>muxcore.staging.json</code> + <code>run-host-staging.sh</code>).</li>
+<li><strong>Auth URL split:</strong> browsers use the public auth base (e.g. <code>https://auth.gringotts</code>); server-side code exchange uses the internal base (e.g. <code>http://127.0.0.1:9401</code>). Never point admin-ui auth vars at the admin UI port itself.</li>
+</ul>
+<h3>Phase 2 / 3 identity &amp; SIEM status</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OIDC/SSO</td>
+<td>Shipped — <a href="https://github.com/Muxcore-Media/auth-oidc"><code>auth-oidc</code></a></td>
+</tr>
+<tr>
+<td>LDAP / AD</td>
+<td>Not started — track as future <code>auth-ldap</code></td>
+</tr>
+<tr>
+<td>SIEM hooks</td>
+<td>Phase 3 — consume core audit JSONL (<code>MUXCORE_AUDIT_PATH</code>) or a future audit-export module/webhook</td>
+</tr>
+</tbody></table>
 <h2>Security Roadmap</h2>
 <table>
 <thead>
@@ -303,11 +334,11 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 </tr>
 <tr>
 <td><strong>Phase 2</strong></td>
-<td>OIDC/SSO, LDAP, module permission declarations</td>
+<td>OIDC/SSO via <a href="https://github.com/Muxcore-Media/auth-oidc"><code>auth-oidc</code></a> (<strong>shipped</strong>); LDAP/AD provider (<strong>planned</strong>); richer module permission declarations</td>
 </tr>
 <tr>
 <td><strong>Phase 3</strong></td>
-<td>Sandbox policies, network segmentation, SIEM integration</td>
+<td>Sandbox policies, network segmentation, SIEM hooks (export audit JSONL / webhook to Splunk, Elastic, etc.)</td>
 </tr>
 </tbody></table>
 <hr>

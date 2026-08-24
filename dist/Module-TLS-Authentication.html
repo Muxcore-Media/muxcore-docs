@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Module TLS Authentication · MuxCore Docs</title>
+  <meta name="description" content="Module TLS Authentication — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -26,7 +28,7 @@
         <a href="Workflow-Engine.html">Workflow Engine</a>
         <a href="Deployment.html">Deployment</a>
         <a href="Security.html">Security</a>
-        <a href="Module-TLS-Authentication.html" class="active">Module TLS Authentication</a>
+        <a href="Module-TLS-Authentication.html" class="active" aria-current="page">Module TLS Authentication</a>
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Module TLS Authentication</h1>
 <p><strong>Core acts as an internal certificate authority (CA) for module identity.</strong> Every module connecting to the gRPC mesh can be authenticated via TLS client certificates issued by core. This page documents the architecture, the two registration paths (auto-issued vs. bootstrap), and configuration.</p>
 <hr>
@@ -71,6 +73,9 @@
 <li>Core validates the token (format, expiry, single-use, module ID match) and returns a signed certificate + key + CA cert</li>
 <li>The module reconnects with mTLS using the received credentials</li>
 </ol>
+<blockquote>
+<p><strong>Path 2 status:</strong> <code>BootstrapRegister</code> is on the mesh public allowlist (<code>moduleRegistrationMethods</code>). The one-time bootstrap token is the authentication for that RPC.</p>
+</blockquote>
 <p><strong>Token format:</strong> <code>mct_&lt;version&gt;_&lt;moduleID&gt;_&lt;hex&gt;</code> (e.g., <code>mct_1_downloader-native-torrent_a1b2c3...</code>)</p>
 <p><strong>Token properties:</strong></p>
 <ul>
@@ -181,21 +186,14 @@ message BootstrapRegisterResponse {
 <td>PEM files at <code>0600</code> permissions</td>
 </tr>
 <tr>
-<td>Cluster PKI</td>
-<td>CA key distributed via join response, AES-256-GCM wrapped with join token</td>
+<td>Cluster CA sharing</td>
+<td><strong>Not implemented</strong> — operators must share/mount the same <code>ca_cert_dir</code> (or CA files) on every node today</td>
 </tr>
 </tbody></table>
 <hr>
-<h2>Cluster PKI Distribution</h2>
-<p>When a new node joins a cluster:</p>
-<ol>
-<li>The seed node encrypts the CA private key with AES-256-GCM using a key derived from the join token (SHA-256)</li>
-<li>The encrypted key + CA cert + signed node cert are returned in the <code>JoinResponse</code></li>
-<li>The joining node decrypts the CA key and installs it via <code>CertAuthority.LoadCA()</code></li>
-<li>All nodes in the cluster now trust the same CA</li>
-<li>Each node can independently issue module certificates that every other node trusts</li>
-</ol>
-<p>This means <strong>modules can move between nodes</strong> in a cluster — their certificates are accepted everywhere.</p>
+<h2>Cluster CA sharing (current vs planned)</h2>
+<p><strong>Today:</strong> <code>JoinResponse</code> carries only <code>cluster_id</code>, <code>members</code>, <code>leader_id</code>, and <code>term</code> (<code>discovery.proto</code>). There is no encrypted CA key in the join path, and no public <code>CertAuthority.LoadCA()</code> for joiners. For multi-node mTLS, configure the <strong>same</strong> CA directory/files on each node (shared volume, config management, etc.).</p>
+<p><strong>Not built yet:</strong> AES-256-GCM wrap of the CA private key into <code>JoinResponse</code> keyed by the join token. Treat that design as aspirational until code lands — do not rely on join to distribute CA material.</p>
 <hr>
 <h2>Next Steps</h2>
 <ul>

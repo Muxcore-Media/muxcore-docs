@@ -4,15 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Home · MuxCore Docs</title>
+  <meta name="description" content="Home — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
-        <a href="index.html" class="active">Home</a>
+      <nav aria-label="Pages">
+        <a href="index.html" class="active" aria-current="page">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Welcome to MuxCore</h1>
 <p><strong>MuxCore is a media automation platform that grows with you.</strong> It starts as simple as a single app. When you&#39;re ready, scale to multiple machines, cloud storage, and custom workflows — without rebuilding or switching platforms.</p>
 <hr>
@@ -68,7 +70,7 @@
 </tr>
 <tr>
 <td>If a node goes down, nothing takes over</td>
-<td>Leader can resurrect orphaned tag modules; worker tasks on the departed node are released for redispatch (retry-capped)</td>
+<td>Leader can resurrect orphaned tag modules; worker tasks on the departed node are released for redispatch (retry-capped via <code>FailNodeTasks</code>)</td>
 </tr>
 <tr>
 <td>Storage must be local or NFS-mounted</td>
@@ -91,7 +93,7 @@ export DOWNLOADER_ENGINE=fixture
 export TMDB_FIXTURE=1
 muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 </code></pre>
-<p><a href="Getting-Started.html">Getting Started</a> covers installer / release layout, fixture-first acquisition (no live pirate required), and verification. Active work: <a href="Tasks.html">Tasks</a> / workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>.</p>
+<p><a href="Getting-Started.html">Getting Started</a> covers installer / release layout, fixture-first acquisition (no live pirate required), and verification. Active work: <a href="Tasks.html">Tasks</a> / workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span>.</p>
 <h2>Quick Navigation</h2>
 <table>
 <thead>
@@ -119,7 +121,7 @@ muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 <tr>
 <td></td>
 <td><a href="Workflow-Engine.html">Workflow Engine</a> — multi-step pipelines</td>
-<td><a href="Tasks.html">Tasks</a> — checklist / <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a></td>
+<td><a href="Tasks.html">Tasks</a> — checklist / <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span></td>
 </tr>
 <tr>
 <td></td>

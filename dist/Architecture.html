@@ -4,20 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Architecture · MuxCore Docs</title>
+  <meta name="description" content="Architecture — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
-        <a href="Architecture.html" class="active">Architecture</a>
+        <a href="Architecture.html" class="active" aria-current="page">Architecture</a>
         <a href="Module-System.html">Module System</a>
         <a href="Writing-Modules.html">Writing Modules</a>
         <a href="Contracts.html">Contracts Reference</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Architecture</h1>
 <p><strong>How MuxCore is built under the hood.</strong> This page covers the bootstrap sequence, gRPC services (module mesh + Health + admin), the sidecar binary pattern, and how the cluster heartbeat protocol works.</p>
 <hr>
@@ -64,7 +66,7 @@
 21. Set health checker combining core probes + module state
 22. Start HTTP server on :8080
 23. Start gRPC server on :9090
-24. Auto-join seed nodes (TLS required) — cluster CA distributed in JoinResponse
+24. Auto-join seed nodes (TLS required) — JoinResponse is membership only (no CA key distribution)
 25. Start heartbeat loop (10s interval, carries module list + cluster term)
 26. Start SIGHUP config-reload goroutine
 27. Wait for shutdown signal
@@ -131,7 +133,7 @@ Shutdown sequence (graceful):
 <tr>
 <td><strong>EventService</strong></td>
 <td><code>muxcore.events.v1</code></td>
-<td><code>Publish()</code>, <code>Subscribe()</code> (streaming), <code>Request()</code></td>
+<td><code>Publish()</code>, <code>Subscribe()</code> (streaming), <code>Request()</code>, <code>Replay()</code> (needs <code>MUXCORE_EVENT_JOURNAL_PATH</code>)</td>
 </tr>
 <tr>
 <td><strong>ModuleMesh</strong></td>
@@ -322,7 +324,7 @@ Shutdown sequence (graceful):
 <li>Accept <code>--muxcore-mesh-addr</code> (default: <code>localhost:9090</code>)</li>
 <li>Accept <code>--muxcore-module-id</code> (its identifier)</li>
 <li>Connect to the gRPC mesh</li>
-<li>Call <code>ModuleRegistration.Register()</code> with JSON-serialized <code>ModuleInfo</code></li>
+<li>Call <code>ModuleRegistration.Register()</code> with a structured protobuf <code>ModuleInfo</code> (SDK fills fields from <code>contracts.ModuleInfo</code> — not a JSON blob)</li>
 <li>Respond to SIGTERM/SIGINT for graceful shutdown</li>
 <li>Call <code>ModuleRegistration.Unregister()</code> on exit</li>
 </ol>
@@ -352,7 +354,7 @@ Shutdown sequence (graceful):
 <li>Surviving nodes evict it after 30s heartbeat timeout</li>
 <li>If the evicted node was the leader, re-election runs automatically</li>
 <li>Mesh stops routing calls to the dead node&#39;s modules</li>
-<li>Leader may resurrect orphaned tag modules on a surviving node; departed-node worker tasks are released to Pending for redispatch (up to <code>MaxRetries</code>; exhausted retries fail)</li>
+<li>Leader may resurrect orphaned tag modules on a surviving node; departed-node worker tasks are released to Pending via <code>FailNodeTasks</code> for redispatch (failed only after <code>MaxRetries</code> when set).</li>
 </ol>
 <h3>Cluster Events</h3>
 <table>
@@ -374,16 +376,12 @@ Shutdown sequence (graceful):
 <td>Core evicted (dead) or gracefully leaves</td>
 </tr>
 <tr>
-<td>Node Degraded</td>
-<td><code>TYPE_NODE_DEGRADED</code></td>
-<td>Node reports reduced capability</td>
-</tr>
-<tr>
 <td>Leader Changed</td>
 <td><code>TYPE_LEADER_CHANGED</code></td>
 <td>Election produces a new leader</td>
 </tr>
 </tbody></table>
+<p><code>TYPE_NODE_DEGRADED</code> exists on the Go <code>Cluster.Events()</code> poll adapter (<code>pkg/contracts</code>) but is <strong>not</strong> emitted on <code>DiscoveryService.Watch()</code> today (Watch only JOINS / LEFT / LEADER_CHANGED).</p>
 <h3>Connection Pooling</h3>
 <p>Heartbeats and cross-node mesh calls reuse a <strong>gRPC connection pool</strong> rather than dialing per-request. The pool evicts idle connections after 5 minutes and is closed cleanly on shutdown.</p>
 <h2>Audit System</h2>
@@ -416,7 +414,7 @@ Shutdown sequence (graceful):
 </ol>
 <p>In Go HTTP middleware, the last wrapper applied executes first. The <code>rebuildChain()</code> function builds from innermost to outermost to achieve the correct execution order.</p>
 <h2>Proxy Trust</h2>
-<p><code>X-Forwarded-For</code> is trusted only from configured proxy CIDRs (loopback by default: <code>127.0.0.0/8</code>, <code>::1/128</code>). Untrusted peers: XFF ignored; client IP is <code>RemoteAddr</code>. <code>X-Real-IP</code> is not used. Configure via <code>server.trusted_proxies</code> or <code>SetTrustedProxies(cidrs []string)</code>. Trusted CIDRs should name the immediate reverse-proxy hop(s).</p>
+<p><code>X-Forwarded-For</code> is trusted only from configured proxy CIDRs (loopback by default: <code>127.0.0.0/8</code>, <code>::1/128</code>). Untrusted peers: XFF ignored; client IP is <code>RemoteAddr</code>. <code>X-Real-IP</code> is not used. Configure via <code>server.trusted_proxies</code> / <code>MUXCORE_SERVER_TRUSTED_PROXIES</code> or <code>SetTrustedProxies(cidrs []string)</code>. Trusted CIDRs should name the immediate reverse-proxy hop(s).</p>
 <h2>Configuration Loading</h2>
 <pre><code>muxcore.json (file)
      ↓
@@ -434,7 +432,10 @@ Config struct
 <p><strong>Safe changes</strong> (applied immediately without restart):</p>
 <ul>
 <li>Log level and format</li>
-<li>Seed node list</li>
+</ul>
+<p><strong>Detected on reload but not applied</strong> (restart required to take effect):</p>
+<ul>
+<li>Seed node list — change is logged; core does not re-join cluster peers until restart</li>
 </ul>
 <p><strong>Unsafe changes</strong> (logged as warnings; require restart):</p>
 <ul>
@@ -464,6 +465,16 @@ Config struct
 <td><code>/health</code></td>
 <td>Always on</td>
 <td>Liveness / readiness for load balancers</td>
+</tr>
+<tr>
+<td><code>/version</code></td>
+<td>Always on</td>
+<td>Build / version string</td>
+</tr>
+<tr>
+<td><code>/api/v1/tasks*</code></td>
+<td>Worker pool present</td>
+<td>List / get / cancel / reassign tasks</td>
 </tr>
 <tr>
 <td><code>/metrics</code></td>
