@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Contracts · MuxCore Docs</title>
+  <meta name="description" content="Contracts — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -20,7 +22,7 @@
         <a href="Architecture.html">Architecture</a>
         <a href="Module-System.html">Module System</a>
         <a href="Writing-Modules.html">Writing Modules</a>
-        <a href="Contracts.html" class="active">Contracts Reference</a>
+        <a href="Contracts.html" class="active" aria-current="page">Contracts Reference</a>
         <a href="Event-System.html">Event System</a>
         <a href="Storage.html">Storage</a>
         <a href="Workflow-Engine.html">Workflow Engine</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Contracts Reference</h1>
 <p><strong>Every interface in MuxCore, documented.</strong> Contracts are the patterns modules agree to follow. This page catalogs every fabric contract. For domain contracts (media-specific interfaces for downloading, playback, etc.), see <a href="Module-System.html">Module System</a>.</p>
 <hr>
@@ -43,7 +45,7 @@
 <p>Each contract lists:</p>
 <ul>
 <li><strong>What it does</strong> — in plain language</li>
-<li><strong>How modules get it</strong> — Fabric field, auto-detected, or runtime discovery</li>
+<li><strong>How modules get it</strong> — gRPC / discovery, auto-detected capability, or runtime lookup</li>
 <li><strong>The interface</strong> — Go code for module developers</li>
 </ul>
 <blockquote>
@@ -361,7 +363,7 @@ type DistributedLockHandle interface {
 </code></pre>
 <hr>
 <h2>gRPC Services (Sidecar Module Access)</h2>
-<p>These gRPC services are exposed on the mesh address. Sidecar modules use them to access core services. Compiled-in modules use the Fabric equivalents directly.</p>
+<p>These gRPC services are exposed on the mesh address. Sidecar modules use them to access core services. In-process / compiled-in access uses the same contract interfaces via core’s registries (there is no separate <code>Fabric</code> type).</p>
 <h3>StorageService</h3>
 <table>
 <thead>

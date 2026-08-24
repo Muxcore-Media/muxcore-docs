@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin API · MuxCore Docs</title>
+  <meta name="description" content="Admin API — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -29,13 +31,13 @@
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
-        <a href="Admin-API.html" class="active">Admin API</a>
+        <a href="Admin-API.html" class="active" aria-current="page">Admin API</a>
         <a href="Tasks.html">Tasks</a>
         <a href="Roadmap.html">Roadmap</a>
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Admin API (gRPC Services)</h1>
 <p><strong>Runtime management services for admin tools.</strong> Core exposes three gRPC services for querying and controlling modules, spools, and audit logs. These are used by <code>admin-ui</code> and the <code>muxcorectl</code> CLI MVP (plus any gRPC client). The MVP covers discovery/events/storage/audit query paths; lifecycle and spool admin RPCs are still deferred in the CLI.</p>
 <p>All three services are registered on the same gRPC port (default <code>:9090</code>) alongside the existing module-facing services.</p>
@@ -80,7 +82,7 @@
 </tbody></table>
 <h3>DeployTag Response</h3>
 <pre><code class="language-json">{
-  &quot;tag_name&quot;: &quot;media-stack&quot;,
+  &quot;tag_name&quot;: &quot;media&quot;,
   &quot;spool_url&quot;: &quot;https://github.com/Muxcore-Media/spool&quot;,
   &quot;results&quot;: [
     {&quot;module_id&quot;: &quot;downloader-native-torrent&quot;, &quot;spawned&quot;: true, &quot;already_running&quot;: false, &quot;error&quot;: &quot;&quot;},
@@ -283,7 +285,7 @@
 <td>Cluster node running this module</td>
 </tr>
 </tbody></table>
-<p>The <code>ModuleInfoProto</code> also now carries <code>state</code> (field 11), <code>health_error</code> (field 12), and <code>repository</code> (field 13) for consolidated reporting.</p>
+<p>The <code>ModuleInfoProto</code> also carries <code>state</code> (field 11) and <code>health_error</code> (field 12). Repository/source URL for a running module is on lifecycle <code>ModuleStatusProto.repo</code>, not on discovery <code>ModuleInfoProto</code>.</p>
 <hr>
 <h2>Next Steps</h2>
 <ul>

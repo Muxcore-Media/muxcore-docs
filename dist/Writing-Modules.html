@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Writing Modules · MuxCore Docs</title>
+  <meta name="description" content="Writing Modules — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -19,7 +21,7 @@
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
         <a href="Module-System.html">Module System</a>
-        <a href="Writing-Modules.html" class="active">Writing Modules</a>
+        <a href="Writing-Modules.html" class="active" aria-current="page">Writing Modules</a>
         <a href="Contracts.html">Contracts Reference</a>
         <a href="Event-System.html">Event System</a>
         <a href="Storage.html">Storage</a>
@@ -35,7 +37,7 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Writing Modules</h1>
 <p><strong>Build your own module — a thread to weave into the MuxCore fabric.</strong> This guide walks through creating a sidecar module from nothing: declaring its role, connecting to the gRPC mesh, discovering other modules, and communicating through events.</p>
 <hr>
@@ -47,6 +49,18 @@
 <li>Understanding of <a href="Core-Concepts.html">Core Concepts</a> and the <a href="Module-System.html">Module System</a></li>
 <li>A running MuxCore instance (<code>muxcored</code>) for testing</li>
 </ul>
+<hr>
+<h2>Fast path: <code>muxcore-module-starter</code></h2>
+<p>Prefer the official starter over hand-rolling <code>go mod init</code>:</p>
+<pre><code class="language-bash">git clone https://github.com/Muxcore-Media/muxcore-module-starter.git
+cd muxcore-module-starter
+make new-module NAME=my-module
+# optional: OUT=/path/to/my-module
+cd ../my-module
+make build &amp;&amp; make test
+</code></pre>
+<p>That generates a sidecar layout, <code>muxcore.json</code>, Makefile, and <strong>self-hosted CI</strong> that pins published <code>core@v0.5.0</code> (private fetch via <code>MUXCORE_CI_TOKEN</code> — no sibling <code>core</code> checkout). Details: <a href="https://github.com/Muxcore-Media/muxcore-module-starter">muxcore-module-starter</a>.</p>
+<p>You can still scaffold manually with the steps below if you need a custom layout.</p>
 <hr>
 <h2>Module Architecture</h2>
 <p>Every module is a <strong>standalone binary</strong> — not compiled into core. Core spawns it as a child process; the module connects to the gRPC mesh and registers at runtime.</p>
@@ -66,7 +80,7 @@
 <h2>Step 1: Create the Go Module</h2>
 <pre><code class="language-bash">mkdir my-module &amp;&amp; cd my-module
 go mod init github.com/yourname/my-module
-go get github.com/Muxcore-Media/core
+go get github.com/Muxcore-Media/core@v0.5.0
 go get github.com/Muxcore-Media/contracts-downloader  # if building a downloader
 </code></pre>
 <hr>
@@ -163,6 +177,7 @@ func main() {
     moduleID := flag.String(&quot;muxcore-module-id&quot;, &quot;my-module&quot;, &quot;Module identifier&quot;)
     tlsCert := flag.String(&quot;muxcore-tls-cert&quot;, &quot;&quot;, &quot;Path to TLS client certificate (auto-provided by core)&quot;)
     tlsKey := flag.String(&quot;muxcore-tls-key&quot;, &quot;&quot;, &quot;Path to TLS client private key (auto-provided by core)&quot;)
+    tlsCA := flag.String(&quot;muxcore-tls-ca&quot;, &quot;&quot;, &quot;Path to CA certificate (MUXCORE_TLS_CA)&quot;)
     flag.Parse()
 
     // Connect to core mesh with retry
@@ -229,7 +244,7 @@ func main() {
 <ul>
 <li>Accept <code>--muxcore-mesh-addr</code> (default: <code>localhost:9090</code>)</li>
 <li>Accept <code>--muxcore-module-id</code> (its identifier)</li>
-<li>Accept <code>--muxcore-tls-cert</code> and <code>--muxcore-tls-key</code> (auto-provided by core when spawned via <code>--tag</code>)</li>
+<li>Accept <code>--muxcore-tls-cert</code>, <code>--muxcore-tls-key</code>, and <code>--muxcore-tls-ca</code> (auto-provided by core when spawned via <code>--tag</code>; prefer <code>modulesdk.Run</code>)</li>
 <li>Connect to the gRPC mesh</li>
 <li>Call <code>ModuleRegistration.Register()</code> with structured <code>ModuleInfo</code></li>
 <li>Respond to SIGTERM/SIGINT for graceful shutdown</li>
@@ -237,13 +252,16 @@ func main() {
 </ul>
 <hr>
 <h2>External Modules (Bootstrap Tokens)</h2>
-<p>If your module runs <strong>outside</strong> core&#39;s sidecar manager (separate container, different machine), you cannot rely on auto-issued TLS certificates. Instead, use the <code>BootstrapRegister</code> RPC with a one-time token:</p>
+<p>If your module runs <strong>outside</strong> core&#39;s sidecar manager (separate container, different machine), you cannot rely on auto-issued TLS certificates. The designed path is <code>BootstrapRegister</code> with a one-time token:</p>
 <ol>
 <li>Generate a bootstrap token for your module on the core node</li>
 <li>Pass the token to your module (via env var, config file, or CLI flag)</li>
 <li>Your module calls <code>BootstrapRegister</code> to receive a signed certificate</li>
 <li>Your module reconnects with mTLS using the received credentials</li>
 </ol>
+<blockquote>
+<p><strong>Note:</strong> <code>BootstrapRegister</code> is on the mesh public allowlist; the one-time bootstrap token is the authentication. Prefer core-spawned sidecars when possible. Details: <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>.</p>
+</blockquote>
 <pre><code class="language-go">regClient := modulev1.NewModuleRegistrationClient(conn)
 
 // Exchange bootstrap token for a signed certificate
@@ -384,7 +402,7 @@ func (m *Module) Hardlink(ctx context.Context, src, dst string) error { ... }
 </code></pre>
 <h3>2. Implement the gRPC server</h3>
 <pre><code class="language-go">type mediaAdminServer struct {
-    mediaadminv1.UnimplementedMediaAdminServer
+    mediaadminv1.UnimplementedMediaAdminServiceServer
     // Your media module state
 }
 
@@ -438,7 +456,7 @@ mediaadminv1.RegisterMediaAdminServiceServer(grpcSrv, &amp;mediaAdminServer{})
     Description:  &quot;Movie library management&quot;,
     Roles:        []string{&quot;media_manager&quot;},
     Capabilities: []string{&quot;media.library&quot;},
-    HttpAddr:     &quot;:9410&quot;,    // gRPC port MediaAdminService listens on
+    HttpAddr:     &quot;:9430&quot;,    // media-movies HTTP helper port (gRPC is :9420 — see Port-Map)
 }
 </code></pre>
 <h3>5. Data model</h3>
@@ -482,7 +500,7 @@ services:
 <ul>
 <li><input disabled="" type="checkbox"> <code>go.mod</code> depends on <code>github.com/Muxcore-Media/core</code> plus domain contract repos</li>
 <li><input disabled="" type="checkbox"> Sidecar entry point at <code>cmd/module/main.go</code></li>
-<li><input disabled="" type="checkbox"> Accepts <code>--muxcore-mesh-addr</code>, <code>--muxcore-module-id</code>, <code>--muxcore-tls-cert</code>, and <code>--muxcore-tls-key</code> flags</li>
+<li><input disabled="" type="checkbox"> Accepts <code>--muxcore-mesh-addr</code>, <code>--muxcore-module-id</code>, <code>--muxcore-tls-cert</code>, <code>--muxcore-tls-key</code>, and <code>--muxcore-tls-ca</code> flags</li>
 <li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Register()</code> at startup with structured <code>ModuleInfo</code></li>
 <li><input disabled="" type="checkbox"> Calls <code>ModuleRegistration.Unregister()</code> at shutdown</li>
 <li><input disabled="" type="checkbox"> Handles SIGTERM/SIGINT for graceful shutdown</li>

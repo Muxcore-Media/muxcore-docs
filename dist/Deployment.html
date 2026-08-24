@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Deployment · MuxCore Docs</title>
+  <meta name="description" content="Deployment — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -24,7 +26,7 @@
         <a href="Event-System.html">Event System</a>
         <a href="Storage.html">Storage</a>
         <a href="Workflow-Engine.html">Workflow Engine</a>
-        <a href="Deployment.html" class="active">Deployment</a>
+        <a href="Deployment.html" class="active" aria-current="page">Deployment</a>
         <a href="Security.html">Security</a>
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
@@ -35,10 +37,10 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Deployment</h1>
 <p><strong>Day one is one laptop.</strong> Prefer the <a href="Getting-Started.html">installer / release-binary path</a> over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.</p>
-<p>Active checklist: <a href="Tasks.html">Tasks</a> (workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>).</p>
+<p>Active checklist: <a href="Tasks.html">Tasks</a> (workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span>).</p>
 <hr>
 <h2>Day-1 preference</h2>
 <table>
@@ -103,7 +105,7 @@
 <p>Configuration: <code>muxcore.json</code> and env — <a href="Configuration-Reference.html">Configuration Reference</a>, <a href="Getting-Started.html">Getting Started</a>.</p>
 <hr>
 <h2>Self-hosted CI and local registry (no billing narrative)</h2>
-<p>MuxCore packaging assumes a <strong>laptop or home lab</strong> plus a <strong>GitHub free</strong> org/account. Product and contributor docs must not depend on paid GitHub Actions minutes or paid package tiers.</p>
+<p>MuxCore packaging assumes a <strong>laptop or home lab</strong> plus <strong>Forgejo origin</strong> on vault (<code>git.zem.systems</code>). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (<code>.forgejo/workflows/</code>).</p>
 <h3>CI</h3>
 <ul>
 <li>Module workflows use <code>runs-on: self-hosted</code> (org runners on your hardware).</li>
@@ -116,19 +118,54 @@
 <li>Build images on the self-hosted runner: <code>docker build</code> (or Podman).</li>
 <li>Push to a <strong>local registry</strong> you run yourself, for example:</li>
 </ul>
-<pre><code class="language-bash"># Example local registry on the lab machine
-docker run -d -p 5000:5000 --name registry registry:2
+<pre><code class="language-bash"># Helper (preferred on the laptop lab)
+cd _mvp
+./local-registry.sh start
+./local-registry.sh push v0.5.0   # builds core/Dockerfile → localhost:5000/muxcore/muxcored:v0.5.0
 
-docker build -t localhost:5000/muxcore/core:v0.5.0 .
-docker push localhost:5000/muxcore/core:v0.5.0
+# Or manually (docker|podman as $RUNTIME)
+$RUNTIME run -d -p 5000:5000 --name muxcore-local-registry registry:2
+cd ../core
+$RUNTIME build --build-arg VERSION=v0.5.0 -t localhost:5000/muxcore/muxcored:v0.5.0 .
+$RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
 </code></pre>
+<p>If neither Docker nor Podman is installed, <code>./local-registry.sh</code> exits non-zero with install instructions — it does <strong>not</strong> claim a successful push.</p>
 <ul>
 <li>Compose and installer pin matrices should reference those local tags (or Release binary tarballs), not “whatever latest is on a paid remote.”</li>
 <li>GitHub Releases (free) remain the distribution channel for <code>muxcored</code> and module binaries; image hosting for day-1 can stay entirely on-LAN.</li>
 <li>Avoid documenting paid GHCR package scopes or hosted-runner billing as requirements.</li>
 </ul>
 <h3>Release factory (summary)</h3>
-<p>Tracked in <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> §10: GoReleaser (or <code>make release</code>) on self-hosted runners for linux amd64/arm64, installer pin matrix, spool tags updated with the same pins. Until that factory is complete, <code>_mvp</code> host builds prove the path; installer consumes published assets.</p>
+<p>Self-hosted release factory (TASKS §10):</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Config</th>
+<th>Workflow</th>
+<th>Artifacts</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>muxcored</code> (<code>core</code>)</td>
+<td><a href="../core/.goreleaser.yaml"><code>.goreleaser.yaml</code></a></td>
+<td><a href="../core/.github/workflows/release.yml"><code>release.yml</code></a> (<code>runs-on: self-hosted</code>)</td>
+<td>linux/darwin × amd64/arm64 tarballs (+ checksums; optional cosign/SBOM)</td>
+</tr>
+<tr>
+<td><code>muxcorectl</code> (<code>muxcorectl-cli</code>)</td>
+<td><a href="../muxcorectl-cli/.goreleaser.yaml"><code>.goreleaser.yaml</code></a></td>
+<td>same pattern</td>
+<td>linux/darwin × amd64/arm64 tarballs</td>
+</tr>
+<tr>
+<td>Active Go modules</td>
+<td>tag <code>release.yml</code> (job often named <code>goreleaser</code>)</td>
+<td>self-hosted preferred</td>
+<td><code>go build</code> linux amd64+arm64 → GitHub Release assets (installer pin matrix)</td>
+</tr>
+</tbody></table>
+<p>Local preview without publishing: <code>make release-snapshot</code> in <code>core</code> or <code>muxcorectl-cli</code> (requires GoReleaser CLI). Installer pins: <a href="../muxcore-installer/PIN-MATRIX.md"><code>muxcore-installer/PIN-MATRIX.md</code></a>.</p>
 <hr>
 <h2>Phase 2: Multiple machines</h2>
 <p>Add workers when you need distributed transcoding, extra storage, or failover. Still no requirement for cloud billing.</p>
@@ -158,7 +195,7 @@ docker push localhost:5000/muxcore/core:v0.5.0
 <pre><code class="language-yaml"># Illustrative — pull images from your local registry
 services:
   muxcore:
-    image: localhost:5000/muxcore/core:v0.5.0
+    image: localhost:5000/muxcore/muxcored:v0.5.0
     environment:
       - MUXCORE_DATABASE_DRIVER=postgres
       - MUXCORE_DATABASE_URL=postgres://...
@@ -191,10 +228,10 @@ export MUXCORE_CLUSTER_JOIN_TOKEN=&quot;my-secret-cluster-token&quot;
 </code></pre>
 <h3>What happens</h3>
 <ol>
-<li>New node contacts seed nodes and presents the join token.</li>
+<li>New node dials seed nodes over TLS and calls <code>Join</code> (auto-join does <strong>not</strong> currently attach <code>x-cluster-join-token</code> metadata — set <code>join_token</code> for the seed’s expected auth story, but verify the client path before relying on token enforcement).</li>
 <li>Receives member list + leader ID and registers.</li>
 <li>Heartbeats every ~10s advertise that node’s module list.</li>
-<li>Eviction after ~30s without heartbeats; modules rediscover via <code>DiscoveryService.Members()</code> and re-register.</li>
+<li>Eviction after ~30s without heartbeats; the <strong>leader</strong> may resurrect orphaned tag modules (<code>ResurrectOrphan</code>). Modules do <strong>not</strong> self-reconnect by querying <code>DiscoveryService.Members()</code>. Departed-node worker tasks are released to Pending for redispatch via <code>FailNodeTasks</code> (failed only after <code>MaxRetries</code> when set). Auto-join attaches <code>x-cluster-join-token</code> when <code>grpc.join_token</code> is configured; <code>Join</code> and <code>Heartbeat</code> are on the mesh public allowlist (token is the Join auth).</li>
 </ol>
 <hr>
 <h2>mTLS and certificates</h2>
@@ -208,7 +245,7 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 <p>Sidecars connect to the nearest mesh:</p>
 <pre><code class="language-yaml">services:
   muxcore:
-    image: localhost:5000/muxcore/core:v0.5.0
+    image: localhost:5000/muxcore/muxcored:v0.5.0
 
   downloader-native-torrent:
     image: localhost:5000/muxcore/downloader-native-torrent:v0.2.1
@@ -267,6 +304,14 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 </tr>
 </tbody></table>
 <hr>
+<h2>Staging profile (operator MVP)</h2>
+<p>The operator host documents a <strong>staging</strong> profile that boots with mTLS and <strong>without</strong> <code>MUXCORE_INSECURE_DISABLE_TLS</code>:</p>
+<ul>
+<li>Config: <a href="../_mvp/muxcore.staging.json"><code>_mvp/muxcore.staging.json</code></a> (<code>mtls_enabled: true</code>)</li>
+<li>Runner: <a href="../_mvp/run-host-staging.sh"><code>_mvp/run-host-staging.sh</code></a></li>
+<li>Checklist: <a href="../_mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></a></li>
+</ul>
+<p>Public browser auth should use a TLS-terminated hostname (e.g. <code>https://auth.gringotts</code>); internal module HTTP for token/code exchange stays on loopback (e.g. <code>http://127.0.0.1:9401</code>). Details: <a href="Security#operator-host-notes-tls--auth-urls">Security</a>.</p>
 <h2>Next steps</h2>
 <ul>
 <li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>

@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Spool and Marketplace · MuxCore Docs</title>
+  <meta name="description" content="Spool and Marketplace — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -27,7 +29,7 @@
         <a href="Deployment.html">Deployment</a>
         <a href="Security.html">Security</a>
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
-        <a href="Spool-and-Marketplace.html" class="active">Spool & Marketplace</a>
+        <a href="Spool-and-Marketplace.html" class="active" aria-current="page">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
         <a href="Tasks.html">Tasks</a>
@@ -35,15 +37,15 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Spool and Marketplace</h1>
 <p><strong>Spools are how MuxCore discovers modules. The marketplace is how it imports them.</strong> This page explains how modules are discovered, imported, and how contract reconciliation enables third-party modules to use their own contract repos.</p>
 <hr>
 <h2>How Spools Work (Plain Language)</h2>
 <p>Think of a spool like an app store catalog. It&#39;s a list of available modules and curated tag presets. When you run:</p>
-<pre><code class="language-bash">muxcored --tag default
+<pre><code class="language-bash">muxcored --tag media
 </code></pre>
-<p>Core fetches the <code>default</code> tag from the official spool (<code>github.com/Muxcore-Media/spool</code>) and discovers which modules to load.</p>
+<p>Core fetches the <code>media</code> tag from the official spool (<code>github.com/Muxcore-Media/spool</code>) and discovers which modules to load. Other curated tags include <code>minimal</code>, <code>default</code> (platform/tapestry-oriented), <code>library-plus</code>, and more under <code>spool/tags/</code>.</p>
 <h3>Official vs Third-Party Spools</h3>
 <table>
 <thead>
@@ -185,13 +187,13 @@ Service &quot;DownloaderService&quot;:
 </tbody></table>
 <h3>Example: Deploy a Tag at Runtime</h3>
 <pre><code class="language-bash"># Using admin-ui, grpcurl, or any gRPC client (muxcorectl spool admin deferred):
-# Call DeployTag to load the &quot;media-stack&quot; tag without restarting core
+# Call DeployTag to load the &quot;media&quot; tag without restarting core
 </code></pre>
 <pre><code class="language-go">spoolClient := spoolv1.NewSpoolServiceClient(conn)
 
 resp, err := spoolClient.DeployTag(ctx, &amp;spoolv1.DeployTagRequest{
     SpoolUrl: &quot;https://github.com/Muxcore-Media/spool&quot;,
-    TagName:  &quot;media-stack&quot;,
+    TagName:  &quot;media&quot;,
 })
 // resp.Spawned   → number of modules newly spawned
 // resp.Skipped   → modules already running
@@ -199,7 +201,7 @@ resp, err := spoolClient.DeployTag(ctx, &amp;spoolv1.DeployTagRequest{
 </code></pre>
 <p>The <code>DeployTag</code> response reports per-module results:</p>
 <pre><code class="language-json">{
-  &quot;tag_name&quot;: &quot;media-stack&quot;,
+  &quot;tag_name&quot;: &quot;media&quot;,
   &quot;results&quot;: [
     {&quot;module_id&quot;: &quot;downloader-native-torrent&quot;, &quot;spawned&quot;: true, &quot;already_running&quot;: false},
     {&quot;module_id&quot;: &quot;media-movies&quot;, &quot;spawned&quot;: false, &quot;already_running&quot;: true}

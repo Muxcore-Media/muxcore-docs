@@ -4,17 +4,19 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Getting Started · MuxCore Docs</title>
+  <meta name="description" content="Getting Started — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
-        <a href="Getting-Started.html" class="active">Getting Started</a>
+        <a href="Getting-Started.html" class="active" aria-current="page">Getting Started</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -35,10 +37,10 @@
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Getting Started</h1>
 <p><strong>Install MuxCore on one laptop from release binaries (or the installer).</strong> You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.</p>
-<p>Active product work is tracked in <a href="Tasks.html">Tasks</a> (workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a>).</p>
+<p>Active product work is tracked in <a href="Tasks.html">Tasks</a> (workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span>).</p>
 <hr>
 <h2>What you are installing</h2>
 <p>MuxCore is a <strong>loom</strong> (<code>muxcored</code>) plus <strong>sidecar modules</strong> (auth, libraries, automation, downloader, UIs). On a laptop, the supported first-run is:</p>
@@ -87,7 +89,7 @@
 ./install.sh --dir ~/muxcore --tag media
 # Follow printed VIEW-ME.txt for admin / consumer URLs
 </code></pre>
-<p>Until the installer ships, use <strong>Path B</strong> (manual release binaries) or the developer lab in <code>_mvp/</code> (sibling builds — not the end-user path).</p>
+<p>Prefer <strong>Path A</strong> (<code>muxcore-installer</code>) for a laptop demo. Use <strong>Path B</strong> (manual release binaries) when you already manage binaries yourself. The developer lab in <code>_mvp/</code> (sibling builds) is not the end-user path.</p>
 <hr>
 <h2>Path B — Manual release binaries</h2>
 <h3>1. Pick a data directory</h3>
@@ -178,7 +180,7 @@ cp .env.example .env
 <td>Recommended if you opt in</td>
 </tr>
 </tbody></table>
-<p>Live acquisition remains available for operators who explicitly enable it. It is <strong>never</strong> a CI gate, install prerequisite, or “Getting Started” requirement. See workspace <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> constraints and §12 non-goals.</p>
+<p>Live acquisition remains available for operators who explicitly enable it. It is <strong>never</strong> a CI gate, install prerequisite, or “Getting Started” requirement. See workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> constraints and §12 non-goals.</p>
 <h3>Default knobs</h3>
 <table>
 <thead>
@@ -247,12 +249,24 @@ cp .env.example .env
 <p>Official spool: <code>https://github.com/Muxcore-Media/spool</code>. Modules there are maintained by the MuxCore org.</p>
 <p>Third-party <code>--spool</code> URLs are untrusted: audit module repos and pins, prefer commit/tag pins, and run untrusted sets in a sandbox. Modules inherit the loom’s OS privileges. Details: <a href="Spool-Security.html">Spool Security</a>.</p>
 <hr>
+<h2>Staging TLS and public auth URLs</h2>
+<p>For a real host (not unit tests):</p>
+<ol>
+<li>Prefer mTLS (<code>MUXCORE_GRPC_MTLS_ENABLED=true</code> / <code>grpc.mtls_enabled</code> in config). See <a href="Module-TLS-Authentication.html">Module TLS Authentication</a> and <a href="Deployment#mtls-and-certificate-management">Deployment</a>.</li>
+<li>Never leave <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> on staging or production processes.</li>
+<li>When using auth-local / auth-oidc behind a reverse proxy, split URLs:<ul>
+<li><strong>Public (browser):</strong> e.g. <code>https://auth.gringotts</code> (<code>AUTH_HTTP_URL</code> / <code>ADMIN_UI_AUTH_ADDR</code>)</li>
+<li><strong>Internal (code exchange):</strong> e.g. <code>http://127.0.0.1:9401</code> (<code>AUTH_HTTP_INTERNAL_URL</code> / <code>ADMIN_UI_AUTH_INTERNAL_ADDR</code>)</li>
+</ul>
+</li>
+</ol>
+<p>Full operator checklist: <a href="../_mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></a>.</p>
 <h2>Next steps</h2>
 <ul>
 <li><a href="#fixture-first-acquisition">Fixture-first acquisition</a> — already above; share with anyone tempted to “just hit Apibay for the demo”</li>
 <li><a href="Core-Concepts.html">Core Concepts</a> — loom, threads, signals</li>
 <li><a href="Deployment.html">Deployment</a> — single laptop → cluster; self-hosted CI + local registry</li>
-<li><a href="Tasks.html">Tasks</a> / <a href="#" title="See workspace TASKS.md"><code>TASKS.md</code></a> — installer, gates G1–G10, packaging checklist</li>
+<li><a href="Tasks.html">Tasks</a> / <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> — installer, gates G1–G10, packaging checklist</li>
 <li><a href="Module-System.html">Module System</a> — what each sidecar does</li>
 </ul>
 

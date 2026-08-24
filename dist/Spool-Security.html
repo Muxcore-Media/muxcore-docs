@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Spool Security · MuxCore Docs</title>
+  <meta name="description" content="Spool Security — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
   <div class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
-      <nav>
+      <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
@@ -28,14 +30,14 @@
         <a href="Security.html">Security</a>
         <a href="Module-TLS-Authentication.html">Module TLS Authentication</a>
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
-        <a href="Spool-Security.html" class="active">Spool Security</a>
+        <a href="Spool-Security.html" class="active" aria-current="page">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
         <a href="Tasks.html">Tasks</a>
         <a href="Roadmap.html">Roadmap</a>
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
-    <main class="content">
+    <main id="main-content" class="content" tabindex="-1">
       <h1>Spool Security</h1>
 <p><strong>Spools are the source of truth for which modules run on your system.</strong> This page explains the security model and what you need to know before using a spool.</p>
 <hr>
@@ -43,7 +45,7 @@
 <pre><code>https://github.com/Muxcore-Media/spool
 </code></pre>
 <p>The official MuxCore spool is maintained by the MuxCore team. All modules it lists are under the <code>Muxcore-Media</code> GitHub organization. When you run:</p>
-<pre><code class="language-bash">muxcored --tag default
+<pre><code class="language-bash">muxcored --tag media
 </code></pre>
 <p>you are loading the <code>default</code> tag from the official spool. Core fetches the tag definition, resolves the listed modules, and launches them.</p>
 <hr>
@@ -76,7 +78,7 @@
 <ul>
 <li><strong>SSRF protection</strong> — the spool fetcher validates URL schemes (https only), blocks private/reserved IPs, enforces a 10-second timeout, and limits response body size to 1 MB.</li>
 <li><strong>Checksum verification</strong> — SHA-256 checksums specified in the spool tag are verified after module build. Required modules with mismatched checksums block startup. Optional modules are skipped with a warning.</li>
-<li><strong>Strict call policy</strong> — modules can only call other modules whose declared capabilities match the call target (enforced by the built-in <code>CallPolicyProvider</code>).</li>
+<li><strong>Strict call policy</strong> — modules can only call other modules whose declared capabilities match the call target (enforced by a <code>CallPolicyProvider</code> module such as <code>call-policy-default</code>; core denies calls until a <code>call.policy</code> module is wired).</li>
 <li><strong>Strict publish policy</strong> — event publication is deny-by-default until a <code>PublishPolicyProvider</code> is registered (capability <code>&quot;publish.policy&quot;</code>). The reference module <code>publish-policy-default</code> loads YAML rules from <code>policies.yaml</code> (override with <code>PUBLISH_POLICY_FILE</code>); each rule matches a <code>caller</code> module ID against <code>event_types</code> globs.</li>
 </ul>
 <p>Core does not currently:</p>
