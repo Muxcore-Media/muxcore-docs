@@ -8,8 +8,8 @@
   --accent-soft: #e4f1f2;
   --content-max: 46rem;
   --sidebar: 15.5rem;
-  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 * {
@@ -26,8 +26,7 @@ body {
   color: var(--ink);
   background:
     radial-gradient(ellipse 80% 50% at 0% 0%, #e8f0ef 0%, transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 10%, #efe8df 0%, transparent 50%),
-    var(--bg);
+    radial-gradient(ellipse 60% 40% at 100% 10%, #efe8df 0%, transparent 50%), var(--bg);
   font-family: var(--font-sans);
   line-height: 1.55;
 }
