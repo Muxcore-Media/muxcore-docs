@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html" class="active" aria-current="page">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -93,7 +99,7 @@ export DOWNLOADER_ENGINE=fixture
 export TMDB_FIXTURE=1
 muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 </code></pre>
-<p><a href="Getting-Started.html">Getting Started</a> covers installer / release layout, fixture-first acquisition (no live pirate required), and verification. Active work: <a href="Tasks.html">Tasks</a> / workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span>.</p>
+<p><a href="Getting-Started.html">Getting Started</a> covers registry compose, release layout, fixture-first acquisition (no live pirate required), and verification. Active work: <a href="Tasks.html">Tasks</a> → <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>.</p>
 <h2>Quick Navigation</h2>
 <table>
 <thead>
@@ -121,7 +127,7 @@ muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 <tr>
 <td></td>
 <td><a href="Workflow-Engine.html">Workflow Engine</a> — multi-step pipelines</td>
-<td><a href="Tasks.html">Tasks</a> — checklist / <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span></td>
+<td><a href="Tasks.html">Tasks</a> — <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></td>
 </tr>
 <tr>
 <td></td>
@@ -134,5 +140,6 @@ muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>

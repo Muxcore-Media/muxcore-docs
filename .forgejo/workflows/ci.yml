@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: native
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v4
+      - name: Install Node
+        run: |
+          set -euo pipefail
+          ver=22.14.0
+          mkdir -p "$HOME/.local"
+          if [ ! -x "$HOME/.local/node/bin/node" ] || ! "$HOME/.local/node/bin/node" -v | grep -q "v${ver}"; then
+            curl -fsSL "https://nodejs.org/dist/v${ver}/node-v${ver}-linux-x64.tar.xz" | tar -xJ -C "$HOME/.local"
+            mv "$HOME/.local/node-v${ver}-linux-x64" "$HOME/.local/node"
+          fi
+          echo "$HOME/.local/node/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: make build
+      - run: npm test
+      - name: Assert dist
+        run: |
+          test -f dist/index.html
+          test -f dist/404.html
+          test -f dist/assets/search-index.json
+      - name: Upload dist artifact
+        uses: https://data.forgejo.org/actions/upload-artifact@v4
+        with:
+          name: muxcore-docs-dist
+          path: dist/
+          if-no-files-found: error

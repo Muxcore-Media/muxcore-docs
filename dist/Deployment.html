@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -40,7 +46,7 @@
     <main id="main-content" class="content" tabindex="-1">
       <h1>Deployment</h1>
 <p><strong>Day one is one laptop.</strong> Prefer the <a href="Getting-Started.html">installer / release-binary path</a> over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.</p>
-<p>Active checklist: <a href="Tasks.html">Tasks</a> (workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span>).</p>
+<p>Active checklist: <a href="Tasks.html">Tasks</a> → workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>.</p>
 <hr>
 <h2>Day-1 preference</h2>
 <table>
@@ -51,8 +57,12 @@
 </tr>
 </thead>
 <tbody><tr>
-<td>Installer or published release binaries</td>
+<td>Forgejo/LAN registry compose (<code>docker-compose.registry.yml</code>)</td>
 <td>Sibling monorepo builds</td>
+</tr>
+<tr>
+<td><code>MUXCORE_REGISTRY</code> + <code>MUXCORE_IMAGE_TAG</code> pins</td>
+<td>Floating <code>latest</code> from a paid remote</td>
 </tr>
 <tr>
 <td>Compose <strong>or</strong> host binaries on one machine</td>
@@ -63,8 +73,8 @@
 <td>Live pirate / swarm as a smoke gate</td>
 </tr>
 <tr>
-<td>Self-hosted CI + <strong>local</strong> image registry</td>
-<td>GitHub-hosted runners, paid Actions minutes, paid Packages billing</td>
+<td>Self-hosted Forgejo CI + <strong>local</strong> image registry</td>
+<td>GitHub-hosted runners, paid Actions minutes, GHCR as required path</td>
 </tr>
 </tbody></table>
 <p><code>_mvp/</code> remains the developer reference lab. End users should never be told to clone sixty repos.</p>
@@ -89,51 +99,55 @@
 <ul>
 <li>In-memory event bus (no external broker required)</li>
 <li>Local filesystem library + downloads dirs</li>
-<li>SQLite (or equivalent) via <code>database-sqlite</code> for the default installer profile</li>
+<li>SQLite (or equivalent) via <code>database-sqlite</code> for the default registry profile</li>
 <li>Admin UI + consumer UI URLs on localhost</li>
 <li>Offline demo via <a href="Getting-Started#fixture-first-acquisition">fixture-first acquisition</a></li>
 </ul>
 <h3>Start options</h3>
-<p><strong>Installer / release binaries</strong> — see <a href="Getting-Started.html">Getting Started</a>.</p>
-<p><strong>Compose</strong> (images from a <strong>local</strong> registry or pre-loaded tarballs):</p>
-<pre><code class="language-bash">docker compose up -d
-# bootstrap admin → open VIEW-ME.txt URLs
+<p><strong>Registry compose (preferred household)</strong> — see <a href="Getting-Started#path-a--registry-install-preferred-household">Getting Started — Path A</a>:</p>
+<pre><code class="language-bash">cd _mvp
+export MUXCORE_REGISTRY=git.zem.systems/muxcore   # or localhost:5000/muxcore
+export MUXCORE_IMAGE_TAG=v0.5.8
+export DOWNLOADER_ENGINE=fixture
+docker compose -f docker-compose.registry.yml pull
+docker compose -f docker-compose.registry.yml up -d
+./smoke.sh
 </code></pre>
+<p>Publish images first with <code>./scripts/publish-muxcored-local.sh</code> and <code>./scripts/local-registry.sh</code> when using a LAN registry. Details: <span class="workspace-file-ref" title="See workspace _mvp/docs/PUBLIC-INSTALL.md"><code>_mvp/docs/PUBLIC-INSTALL.md</code></span>.</p>
+<p><strong>Installer / release binaries</strong> — see <a href="Getting-Started#path-b--installer-or-manual-release-binaries">Getting Started — Path B</a>. GitHub Releases and GHCR are optional public mirrors, not the origin install gate.</p>
 <p><strong>Bare loom + tag</strong> (modules already on disk or resolved from spool):</p>
 <pre><code class="language-bash">muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 </code></pre>
 <p>Configuration: <code>muxcore.json</code> and env — <a href="Configuration-Reference.html">Configuration Reference</a>, <a href="Getting-Started.html">Getting Started</a>.</p>
 <hr>
 <h2>Self-hosted CI and local registry (no billing narrative)</h2>
-<p>MuxCore packaging assumes a <strong>laptop or home lab</strong> plus <strong>Forgejo origin</strong> on vault (<code>git.zem.systems</code>). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (<code>.forgejo/workflows/</code>).</p>
+<p>MuxCore packaging assumes a <strong>laptop or home lab</strong> plus <strong>Forgejo origin</strong> on vault (<code>git.zem.systems</code>). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (<code>.forgejo/workflows/</code>, <code>runs-on: native</code>).</p>
 <h3>CI</h3>
 <ul>
-<li>Module workflows use <code>runs-on: self-hosted</code> (org runners on your hardware).</li>
-<li>Merge gates: <code>go test ./...</code> (or language equivalent) on those runners.</li>
-<li>Do <strong>not</strong> treat GitHub-hosted runners as the default path for new repos.</li>
+<li>Module workflows use <code>runs-on: native</code> on the vault Forgejo runner.</li>
+<li>Merge gates: <code>go test ./...</code> (or language equivalent), <code>npm test</code> for docs, on those runners.</li>
+<li>Do <strong>not</strong> treat <code>.github/workflows/</code> as the origin gate — GitHub Pages / Release mirrors are optional public consumers.</li>
 <li>Offline / fixture / httptest tests only for acquisition — no live pirate APIs in CI.</li>
 </ul>
 <h3>Images and artifacts</h3>
 <ul>
-<li>Build images on the self-hosted runner: <code>docker build</code> (or Podman).</li>
-<li>Push to a <strong>local registry</strong> you run yourself, for example:</li>
+<li>Build images on the self-hosted runner or lab host: <code>docker build</code> / <code>podman build</code>.</li>
+<li>Push to <strong>Forgejo</strong> (<code>git.zem.systems/muxcore</code>) or a <strong>LAN registry</strong>:</li>
 </ul>
-<pre><code class="language-bash"># Helper (preferred on the laptop lab)
-cd _mvp
-./local-registry.sh start
-./local-registry.sh push v0.5.0   # builds core/Dockerfile → localhost:5000/muxcore/muxcored:v0.5.0
+<pre><code class="language-bash">cd _mvp
+./scripts/local-registry.sh start
+export MUXCORE_REGISTRY=localhost:5000/muxcore
+./scripts/publish-muxcored-local.sh v0.5.8
 
-# Or manually (docker|podman as $RUNTIME)
-$RUNTIME run -d -p 5000:5000 --name muxcore-local-registry registry:2
-cd ../core
-$RUNTIME build --build-arg VERSION=v0.5.0 -t localhost:5000/muxcore/muxcored:v0.5.0 .
-$RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
+# Install host uses the same MUXCORE_REGISTRY + docker-compose.registry.yml
+export MUXCORE_IMAGE_TAG=v0.5.8
+docker compose -f docker-compose.registry.yml pull
+docker compose -f docker-compose.registry.yml up -d
 </code></pre>
-<p>If neither Docker nor Podman is installed, <code>./local-registry.sh</code> exits non-zero with install instructions — it does <strong>not</strong> claim a successful push.</p>
+<p><code>MUXCORE_REGISTRY</code> defaults to <code>git.zem.systems/muxcore</code> in the publish script; compose defaults to <code>localhost:5000/muxcore</code> when unset — set the <strong>same value</strong> on publish and install.</p>
 <ul>
-<li>Compose and installer pin matrices should reference those local tags (or Release binary tarballs), not “whatever latest is on a paid remote.”</li>
-<li>GitHub Releases (free) remain the distribution channel for <code>muxcored</code> and module binaries; image hosting for day-1 can stay entirely on-LAN.</li>
-<li>Avoid documenting paid GHCR package scopes or hosted-runner billing as requirements.</li>
+<li>Household pin matrices: <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a> and <code>muxcore-installer/versions.env</code>.</li>
+<li><strong>Deferred public mirror:</strong> <code>_mvp/docker-compose.ghcr.yml</code> + <code>publish-muxcored-ghcr.sh</code> for <code>ghcr.io/muxcore-media/*</code> once GitHub <code>write:packages</code> exists — not required for day-1 household installs.</li>
 </ul>
 <h3>Release factory (summary)</h3>
 <p>Self-hosted release factory (TASKS §10):</p>
@@ -311,16 +325,17 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 <li>Runner: <span class="workspace-file-ref" title="See workspace _mvp/run-host-staging.sh"><code>_mvp/run-host-staging.sh</code></span></li>
 <li>Checklist: <span class="workspace-file-ref" title="See workspace _mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></span></li>
 </ul>
-<p>Public browser auth should use a TLS-terminated hostname (e.g. <code>https://auth.gringotts</code>); internal module HTTP for token/code exchange stays on loopback (e.g. <code>http://127.0.0.1:9401</code>). Details: <a href="Security#operator-host-notes-tls--auth-urls">Security</a>.</p>
+<p>Public browser auth should use a TLS-terminated hostname (e.g. <code>https://auth.zem.systems</code>); internal module HTTP for token/code exchange stays on loopback (e.g. <code>http://127.0.0.1:9401</code>). Details: <a href="Security#operator-host-notes-tls--auth-urls">Security</a>.</p>
 <h2>Next steps</h2>
 <ul>
 <li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>
 <li><a href="Security.html">Security</a> — TLS, mTLS, join tokens</li>
 <li><a href="Core-Concepts.html">Core Concepts</a> — cross-node tracking and failover</li>
-<li><a href="Tasks.html">Tasks</a> — packaging, gates, and what is explicitly out of scope</li>
+<li><a href="Tasks.html">Tasks</a> — stub to <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></li>
 </ul>
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>

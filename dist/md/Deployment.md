@@ -2,7 +2,7 @@
 
 **Day one is one laptop.** Prefer the [installer / release-binary path](Getting-Started) over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.
 
-Active checklist: [Tasks](Tasks) (workspace [`TASKS.md`](../TASKS.md)).
+Active checklist: [Tasks](Tasks) → workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
 
 ---
 
@@ -10,10 +10,11 @@ Active checklist: [Tasks](Tasks) (workspace [`TASKS.md`](../TASKS.md)).
 
 | Prefer | Defer |
 |--------|-------|
-| Installer or published release binaries | Sibling monorepo builds |
+| Forgejo/LAN registry compose (`docker-compose.registry.yml`) | Sibling monorepo builds |
+| `MUXCORE_REGISTRY` + `MUXCORE_IMAGE_TAG` pins | Floating `latest` from a paid remote |
 | Compose **or** host binaries on one machine | `muxcore-operator` / Helm as the first install |
 | Fixture acquisition (`DOWNLOADER_ENGINE=fixture`) | Live pirate / swarm as a smoke gate |
-| Self-hosted CI + **local** image registry | GitHub-hosted runners, paid Actions minutes, paid Packages billing |
+| Self-hosted Forgejo CI + **local** image registry | GitHub-hosted runners, paid Actions minutes, GHCR as required path |
 
 `_mvp/` remains the developer reference lab. End users should never be told to clone sixty repos.
 
@@ -43,20 +44,27 @@ One host, one `muxcored`, modules as sidecars (spawned by core or started by the
 
 - In-memory event bus (no external broker required)
 - Local filesystem library + downloads dirs
-- SQLite (or equivalent) via `database-sqlite` for the default installer profile
+- SQLite (or equivalent) via `database-sqlite` for the default registry profile
 - Admin UI + consumer UI URLs on localhost
 - Offline demo via [fixture-first acquisition](Getting-Started#fixture-first-acquisition)
 
 ### Start options
 
-**Installer / release binaries** — see [Getting Started](Getting-Started).
-
-**Compose** (images from a **local** registry or pre-loaded tarballs):
+**Registry compose (preferred household)** — see [Getting Started — Path A](Getting-Started#path-a--registry-install-preferred-household):
 
 ```bash
-docker compose up -d
-# bootstrap admin → open VIEW-ME.txt URLs
+cd _mvp
+export MUXCORE_REGISTRY=git.zem.systems/muxcore   # or localhost:5000/muxcore
+export MUXCORE_IMAGE_TAG=v0.5.8
+export DOWNLOADER_ENGINE=fixture
+docker compose -f docker-compose.registry.yml pull
+docker compose -f docker-compose.registry.yml up -d
+./smoke.sh
 ```
+
+Publish images first with `./scripts/publish-muxcored-local.sh` and `./scripts/local-registry.sh` when using a LAN registry. Details: [`_mvp/docs/PUBLIC-INSTALL.md`](../_mvp/docs/PUBLIC-INSTALL.md).
+
+**Installer / release binaries** — see [Getting Started — Path B](Getting-Started#path-b--installer-or-manual-release-binaries). GitHub Releases and GHCR are optional public mirrors, not the origin install gate.
 
 **Bare loom + tag** (modules already on disk or resolved from spool):
 
@@ -70,38 +78,36 @@ Configuration: `muxcore.json` and env — [Configuration Reference](Configuratio
 
 ## Self-hosted CI and local registry (no billing narrative)
 
-MuxCore packaging assumes a **laptop or home lab** plus **Forgejo origin** on vault (`git.zem.systems`). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (`.forgejo/workflows/`).
+MuxCore packaging assumes a **laptop or home lab** plus **Forgejo origin** on vault (`git.zem.systems`). Product and contributor docs must not depend on GitHub Actions or paid GitHub package tiers — origin CI runs on the vault Forgejo runner (`.forgejo/workflows/`, `runs-on: native`).
 
 ### CI
 
-- Module workflows use `runs-on: self-hosted` (org runners on your hardware).
-- Merge gates: `go test ./...` (or language equivalent) on those runners.
-- Do **not** treat GitHub-hosted runners as the default path for new repos.
+- Module workflows use `runs-on: native` on the vault Forgejo runner.
+- Merge gates: `go test ./...` (or language equivalent), `npm test` for docs, on those runners.
+- Do **not** treat `.github/workflows/` as the origin gate — GitHub Pages / Release mirrors are optional public consumers.
 - Offline / fixture / httptest tests only for acquisition — no live pirate APIs in CI.
 
 ### Images and artifacts
 
-- Build images on the self-hosted runner: `docker build` (or Podman).
-- Push to a **local registry** you run yourself, for example:
+- Build images on the self-hosted runner or lab host: `docker build` / `podman build`.
+- Push to **Forgejo** (`git.zem.systems/muxcore`) or a **LAN registry**:
 
 ```bash
-# Helper (preferred on the laptop lab)
 cd _mvp
-./local-registry.sh start
-./local-registry.sh push v0.5.0   # builds core/Dockerfile → localhost:5000/muxcore/muxcored:v0.5.0
+./scripts/local-registry.sh start
+export MUXCORE_REGISTRY=localhost:5000/muxcore
+./scripts/publish-muxcored-local.sh v0.5.8
 
-# Or manually (docker|podman as $RUNTIME)
-$RUNTIME run -d -p 5000:5000 --name muxcore-local-registry registry:2
-cd ../core
-$RUNTIME build --build-arg VERSION=v0.5.0 -t localhost:5000/muxcore/muxcored:v0.5.0 .
-$RUNTIME push localhost:5000/muxcore/muxcored:v0.5.0
+# Install host uses the same MUXCORE_REGISTRY + docker-compose.registry.yml
+export MUXCORE_IMAGE_TAG=v0.5.8
+docker compose -f docker-compose.registry.yml pull
+docker compose -f docker-compose.registry.yml up -d
 ```
 
-If neither Docker nor Podman is installed, `./local-registry.sh` exits non-zero with install instructions — it does **not** claim a successful push.
+`MUXCORE_REGISTRY` defaults to `git.zem.systems/muxcore` in the publish script; compose defaults to `localhost:5000/muxcore` when unset — set the **same value** on publish and install.
 
-- Compose and installer pin matrices should reference those local tags (or Release binary tarballs), not “whatever latest is on a paid remote.”
-- GitHub Releases (free) remain the distribution channel for `muxcored` and module binaries; image hosting for day-1 can stay entirely on-LAN.
-- Avoid documenting paid GHCR package scopes or hosted-runner billing as requirements.
+- Household pin matrices: [Installer Pin Matrix](Installer-Pin-Matrix) and `muxcore-installer/versions.env`.
+- **Deferred public mirror:** `_mvp/docker-compose.ghcr.yml` + `publish-muxcored-ghcr.sh` for `ghcr.io/muxcore-media/*` once GitHub `write:packages` exists — not required for day-1 household installs.
 
 ### Release factory (summary)
 
@@ -265,11 +271,11 @@ The operator host documents a **staging** profile that boots with mTLS and **wit
 - Runner: [`_mvp/run-host-staging.sh`](../_mvp/run-host-staging.sh)
 - Checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md)
 
-Public browser auth should use a TLS-terminated hostname (e.g. `https://auth.gringotts`); internal module HTTP for token/code exchange stays on loopback (e.g. `http://127.0.0.1:9401`). Details: [Security](Security#operator-host-notes-tls--auth-urls).
+Public browser auth should use a TLS-terminated hostname (e.g. `https://auth.zem.systems`); internal module HTTP for token/code exchange stays on loopback (e.g. `http://127.0.0.1:9401`). Details: [Security](Security#operator-host-notes-tls--auth-urls).
 
 ## Next steps
 
 - [Getting Started](Getting-Started) — installer / release binaries + fixture-first acquisition
 - [Security](Security) — TLS, mTLS, join tokens
 - [Core Concepts](Core-Concepts) — cross-node tracking and failover
-- [Tasks](Tasks) — packaging, gates, and what is explicitly out of scope
+- [Tasks](Tasks) — stub to [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md)

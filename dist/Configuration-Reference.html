@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html" class="active" aria-current="page">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -929,6 +935,81 @@
 <td><code>127.0.0.1:9202</code></td>
 <td><code>health-monitor</code> (installer)</td>
 </tr>
+<tr>
+<td><code>SUBTITLES_GRPC_ADDR</code> / <code>SUBTITLES_HTTP_ADDR</code></td>
+<td><code>127.0.0.1:9520</code> / <code>:9521</code></td>
+<td><code>media-subtitles</code></td>
+</tr>
+<tr>
+<td><code>TRANSCODER_GRPC_ADDR</code> / <code>TRANSCODER_HTTP_ADDR</code></td>
+<td><code>127.0.0.1:9525</code> / <code>:9526</code></td>
+<td><code>media-transcoder</code> (BFF transcode dial)</td>
+</tr>
+<tr>
+<td><code>PLEX_GRPC_ADDR</code> / <code>PLEX_HTTP_ADDR</code></td>
+<td><code>127.0.0.1:9476</code> / <code>:8476</code></td>
+<td><code>plex</code> bridge</td>
+</tr>
+<tr>
+<td><code>EMBY_GRPC_ADDR</code> / <code>EMBY_HTTP_ADDR</code></td>
+<td><code>127.0.0.1:9477</code> / <code>:8477</code></td>
+<td><code>emby</code> bridge</td>
+</tr>
+<tr>
+<td><code>MUSIC_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9640</code></td>
+<td><code>media-music</code></td>
+</tr>
+<tr>
+<td><code>BOOKS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9650</code></td>
+<td><code>media-books</code></td>
+</tr>
+<tr>
+<td><code>COMICS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9660</code></td>
+<td><code>media-comics</code></td>
+</tr>
+<tr>
+<td><code>AUDIOBOOKS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9670</code></td>
+<td><code>media-audiobooks</code></td>
+</tr>
+<tr>
+<td><code>USERDATA_LOCAL_HTTP_ADDR</code> / <code>USERDATA_LOCAL_GRPC_ADDR</code></td>
+<td><code>:9672</code> / <code>:9673</code></td>
+<td><code>userdata-local</code> (<code>MVP_ENABLE_USERDATA_LOCAL=1</code>)</td>
+</tr>
+<tr>
+<td><code>LIST_SYNC_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9530</code></td>
+<td><code>media-list-sync</code></td>
+</tr>
+<tr>
+<td><code>DLNA_HTTP_ADDR</code> / <code>DLNA_GRPC_ADDR</code></td>
+<td><code>:9750</code> / <code>:9751</code></td>
+<td><code>media-dlna</code></td>
+</tr>
+<tr>
+<td><code>CACHE_LOCAL_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9602</code></td>
+<td><code>cache-local</code></td>
+</tr>
+<tr>
+<td><code>CACHE_REDIS_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9600</code></td>
+<td><code>cache-redis</code></td>
+</tr>
+<tr>
+<td><code>STORAGE_S3_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9610</code></td>
+<td><code>storage-s3</code></td>
+</tr>
+<tr>
+<td><code>STORAGE_CEPH_GRPC_ADDR</code></td>
+<td><code>127.0.0.1:9680</code></td>
+<td><code>storage-ceph</code></td>
+</tr>
 </tbody></table>
 <p>Core loom ports (not env overrides in the demo <code>.env</code>, but expected defaults): HTTP <strong><code>:8080</code></strong>, gRPC mesh <strong><code>:9090</code></strong>. Admin UI listens on <strong><code>:8082</code></strong> (remapped off <code>:8080</code>). Consumer SPA (when enabled) is typically <strong><code>:5173</code></strong>. Indexer gRPC <strong><code>:9485</code></strong> only when live acquisition is opted in (remapped off ffprobe <code>:9480</code>).</p>
 <p>Optional soft Jellyfin server (not required for demo): <code>JELLYFIN_BASE_URL</code>, <code>JELLYFIN_API_KEY</code>, <code>JELLYFIN_WEBHOOK_SECRET</code> — leave empty for unconfigured-bridge smoke.</p>
@@ -1103,5 +1184,6 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>

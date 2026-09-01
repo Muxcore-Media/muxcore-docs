@@ -91,6 +91,30 @@ Not started by the installer fixture path. `_mvp` starts `indexer-piratebay` onl
 
 ---
 
+## Optional media, userdata, cache, and storage peers
+
+Not started by the default installer fixture path. Listed so multi-module hosts do not reuse ports. Enable via `_mvp/run-host.sh` env flags or registry compose profiles. Canonical list: workspace `_mvp/PORTS.md`.
+
+| Module | Protocol | Port(s) | Override env | Enable flag / notes |
+|--------|----------|---------|--------------|---------------------|
+| `userdata-local` | HTTP / gRPC | **9672** / **9673** | `USERDATA_LOCAL_HTTP_ADDR` / `USERDATA_LOCAL_GRPC_ADDR` | `MVP_ENABLE_USERDATA_LOCAL=1` |
+| `media-subtitles` | gRPC / HTTP | **9520** / **9521** | `SUBTITLES_GRPC_ADDR` / `SUBTITLES_HTTP_ADDR` | optional subtitle manager |
+| `media-transcoder` | gRPC / playback HTTP | **9525** / **9526** | `TRANSCODER_GRPC_ADDR` / `TRANSCODER_HTTP_ADDR` | mediauiprox transcode dial `:9526` |
+| `plex` | gRPC / HTTP | **9476** / **8476** | `PLEX_GRPC_ADDR` / `PLEX_HTTP_ADDR` | optional playback bridge |
+| `emby` | gRPC / HTTP | **9477** / **8477** | `EMBY_GRPC_ADDR` / `EMBY_HTTP_ADDR` | optional playback bridge |
+| `media-music` | gRPC / health HTTP | **9640** / **9641** | `MUSIC_GRPC_ADDR` / `MUSIC_HTTP_ADDR` | optional Lidarr-class manager |
+| `media-books` | gRPC / health HTTP | **9650** / **9651** | `BOOKS_GRPC_ADDR` / `BOOKS_HTTP_ADDR` | optional Readarr-class manager |
+| `media-comics` | gRPC / health HTTP | **9660** / **9661** | `COMICS_GRPC_ADDR` / `COMICS_HTTP_ADDR` | optional manga/comic manager |
+| `media-audiobooks` | gRPC / health HTTP | **9670** / **9671** | `AUDIOBOOKS_GRPC_ADDR` / `AUDIOBOOKS_HTTP_ADDR` | optional audiobook manager |
+| `media-list-sync` | gRPC | **9530** | `LIST_SYNC_GRPC_ADDR` | `MVP_ENABLE_MEDIA_LIST_SYNC=1` |
+| `media-dlna` | DLNA HTTP / gRPC / health | **9750** / **9751** / **8751** | `DLNA_HTTP_ADDR` / `DLNA_GRPC_ADDR` / `DLNA_HEALTH_ADDR` | `MVP_ENABLE_MEDIA_DLNA=1` |
+| `cache-local` | gRPC | **9602** | `CACHE_LOCAL_GRPC_ADDR` | in-process cache module |
+| `cache-redis` | gRPC | **9600** | `CACHE_REDIS_GRPC_ADDR` | `MVP_ENABLE_CACHE_REDIS=1` or `REDIS_ADDR` |
+| `storage-s3` | gRPC / health HTTP | **9610** / **9611** | `STORAGE_S3_GRPC_ADDR` / `STORAGE_S3_HTTP_ADDR` | optional S3/MinIO provider |
+| `storage-ceph` | gRPC / health HTTP | **9680** / **9681** | `STORAGE_CEPH_GRPC_ADDR` / `STORAGE_CEPH_HTTP_ADDR` | optional Ceph/RGW provider |
+
+---
+
 ## Remapped host ports (collision fixes)
 
 Historical module defaults overlapped when several sidecars ran on one host. **Current binary defaults and the host/installer scripts already use the remapped ports below.** Treat older docs that still say the “former” value as stale.
@@ -151,4 +175,4 @@ Same numbers as installer `VIEW-ME.txt` / `_mvp` Endpoints:
 - [Configuration Reference](Configuration-Reference) — full env list
 - [Getting Started](Getting-Started) — laptop install paths
 - [Deployment](Deployment) — production TLS (no insecure-disable)
-- Workspace [`TASKS.md`](../TASKS.md) — product checklist
+- [Roadmap](Roadmap) — open work stub

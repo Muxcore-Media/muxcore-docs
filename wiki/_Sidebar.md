@@ -3,6 +3,7 @@
 - [Home](Home)
 - [Core Concepts](Core-Concepts)
 - [Getting Started](Getting-Started)
+- [Installer Pin Matrix](Installer-Pin-Matrix)
 - [Configuration Reference](Configuration-Reference)
 - [Port Map](Port-Map)
 - [Architecture](Architecture)

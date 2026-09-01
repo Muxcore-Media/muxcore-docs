@@ -1,6 +1,6 @@
 # Contributing to MuxCore
 
-**Thank you for considering contributing to MuxCore.** This guide covers development setup, contract contribution guidelines, and the PR process.
+**Thank you for considering contributing to MuxCore.** Origin development runs on **Forgejo** (`git.zem.systems`); GitHub clone/PR/wiki-push is the optional public consumer path later.
 
 ---
 
@@ -10,13 +10,18 @@
 
 - **Go 1.26.x** (see `go.mod`; currently `go 1.26.4`)
 - **protoc** + **protoc-gen-go** + **protoc-gen-go-grpc** (for proto changes)
-- **git** + **GitHub account**
+- **git** + SSH access to Forgejo
 
-### Clone and Build
+### Clone and Build (origin)
 
 ```bash
-git clone https://github.com/Muxcore-Media/core.git
+git clone ssh://forgejo@git.zem.systems:2222/muxcore/core.git
 cd core
+
+export GOPRIVATE='github.com/Muxcore-Media/*'
+export GONOSUMDB='github.com/Muxcore-Media/*'
+git config --global url."ssh://forgejo@git.zem.systems:2222/muxcore/".insteadOf "https://github.com/Muxcore-Media/"
+
 go build ./...
 ```
 
@@ -27,6 +32,8 @@ make test
 # or full gate:
 make ci
 ```
+
+Origin CI: `.forgejo/workflows/ci.yml` with `runs-on: native` on the vault Forgejo runner. Do **not** treat `.github/workflows/` as the merge gate.
 
 ### Lint
 
@@ -83,6 +90,8 @@ Before adding a new contract to `pkg/contracts/`:
 
 Modules are standalone binaries, not compile-time imports. See [Writing Modules](Writing-Modules) for the sidecar pattern. Reference implementation: [downloader-native-torrent](https://github.com/Muxcore-Media/downloader-native-torrent).
 
+Each module repo carries its own `.forgejo/workflows/ci.yml` (`runs-on: native`).
+
 ---
 
 ## PR Process
@@ -117,7 +126,7 @@ Examples:
 
 ### Review
 
-All PRs require review. CI must pass (build + test + lint). Doc-only PRs still require CI green.
+All PRs require review. Forgejo CI must pass (build + test + lint). Doc-only PRs still require CI green.
 
 ### Merging
 
@@ -127,16 +136,18 @@ Squash-merge to `master`. Branch protection requires PRs, blocks force push, blo
 
 ## Documentation
 
-### Wiki
+### Wiki (`muxcore-docs`)
 
-The wiki at `github.com/Muxcore-Media/core.wiki` is the primary user-facing documentation. When adding or changing a feature:
+Committed wiki markdown lives in **`muxcore-docs/wiki/`** in the umbrella workspace (or the `muxcore/muxcore-docs` Forgejo repo). When adding or changing a feature:
 
-1. Update the relevant wiki page
+1. Update the relevant wiki page under `muxcore-docs/wiki/`
 2. If it's a new contract, add it to the Contracts page
 3. If it's a new config option, add it to the Configuration Reference
-4. Update the Roadmap if applicable
+4. Point Roadmap/Tasks stubs at workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) — do not maintain parallel checkbox lists
 
-Wiki changes are pushed directly to the wiki repo's `master` branch.
+Rebuild the static site: `cd muxcore-docs && npm ci && make build && npm test`.
+
+**Public consumer path (later):** GitHub wiki (`core.wiki`) and GitHub Pages (`.github/workflows/pages.yml`) mirror the committed snapshot — they are not the origin documentation workflow.
 
 ### Code Documentation
 

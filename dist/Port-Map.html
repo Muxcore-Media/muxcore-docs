@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html" class="active" aria-current="page">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -410,6 +416,125 @@
 </tr>
 </tbody></table>
 <hr>
+<h2>Optional media, userdata, cache, and storage peers</h2>
+<p>Not started by the default installer fixture path. Listed so multi-module hosts do not reuse ports. Enable via <code>_mvp/run-host.sh</code> env flags or registry compose profiles. Canonical list: workspace <code>_mvp/PORTS.md</code>.</p>
+<table>
+<thead>
+<tr>
+<th scope="col">Module</th>
+<th scope="col">Protocol</th>
+<th scope="col">Port(s)</th>
+<th scope="col">Override env</th>
+<th scope="col">Enable flag / notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>userdata-local</code></td>
+<td>HTTP / gRPC</td>
+<td><strong>9672</strong> / <strong>9673</strong></td>
+<td><code>USERDATA_LOCAL_HTTP_ADDR</code> / <code>USERDATA_LOCAL_GRPC_ADDR</code></td>
+<td><code>MVP_ENABLE_USERDATA_LOCAL=1</code></td>
+</tr>
+<tr>
+<td><code>media-subtitles</code></td>
+<td>gRPC / HTTP</td>
+<td><strong>9520</strong> / <strong>9521</strong></td>
+<td><code>SUBTITLES_GRPC_ADDR</code> / <code>SUBTITLES_HTTP_ADDR</code></td>
+<td>optional subtitle manager</td>
+</tr>
+<tr>
+<td><code>media-transcoder</code></td>
+<td>gRPC / playback HTTP</td>
+<td><strong>9525</strong> / <strong>9526</strong></td>
+<td><code>TRANSCODER_GRPC_ADDR</code> / <code>TRANSCODER_HTTP_ADDR</code></td>
+<td>mediauiprox transcode dial <code>:9526</code></td>
+</tr>
+<tr>
+<td><code>plex</code></td>
+<td>gRPC / HTTP</td>
+<td><strong>9476</strong> / <strong>8476</strong></td>
+<td><code>PLEX_GRPC_ADDR</code> / <code>PLEX_HTTP_ADDR</code></td>
+<td>optional playback bridge</td>
+</tr>
+<tr>
+<td><code>emby</code></td>
+<td>gRPC / HTTP</td>
+<td><strong>9477</strong> / <strong>8477</strong></td>
+<td><code>EMBY_GRPC_ADDR</code> / <code>EMBY_HTTP_ADDR</code></td>
+<td>optional playback bridge</td>
+</tr>
+<tr>
+<td><code>media-music</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9640</strong> / <strong>9641</strong></td>
+<td><code>MUSIC_GRPC_ADDR</code> / <code>MUSIC_HTTP_ADDR</code></td>
+<td>optional Lidarr-class manager</td>
+</tr>
+<tr>
+<td><code>media-books</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9650</strong> / <strong>9651</strong></td>
+<td><code>BOOKS_GRPC_ADDR</code> / <code>BOOKS_HTTP_ADDR</code></td>
+<td>optional Readarr-class manager</td>
+</tr>
+<tr>
+<td><code>media-comics</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9660</strong> / <strong>9661</strong></td>
+<td><code>COMICS_GRPC_ADDR</code> / <code>COMICS_HTTP_ADDR</code></td>
+<td>optional manga/comic manager</td>
+</tr>
+<tr>
+<td><code>media-audiobooks</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9670</strong> / <strong>9671</strong></td>
+<td><code>AUDIOBOOKS_GRPC_ADDR</code> / <code>AUDIOBOOKS_HTTP_ADDR</code></td>
+<td>optional audiobook manager</td>
+</tr>
+<tr>
+<td><code>media-list-sync</code></td>
+<td>gRPC</td>
+<td><strong>9530</strong></td>
+<td><code>LIST_SYNC_GRPC_ADDR</code></td>
+<td><code>MVP_ENABLE_MEDIA_LIST_SYNC=1</code></td>
+</tr>
+<tr>
+<td><code>media-dlna</code></td>
+<td>DLNA HTTP / gRPC / health</td>
+<td><strong>9750</strong> / <strong>9751</strong> / <strong>8751</strong></td>
+<td><code>DLNA_HTTP_ADDR</code> / <code>DLNA_GRPC_ADDR</code> / <code>DLNA_HEALTH_ADDR</code></td>
+<td><code>MVP_ENABLE_MEDIA_DLNA=1</code></td>
+</tr>
+<tr>
+<td><code>cache-local</code></td>
+<td>gRPC</td>
+<td><strong>9602</strong></td>
+<td><code>CACHE_LOCAL_GRPC_ADDR</code></td>
+<td>in-process cache module</td>
+</tr>
+<tr>
+<td><code>cache-redis</code></td>
+<td>gRPC</td>
+<td><strong>9600</strong></td>
+<td><code>CACHE_REDIS_GRPC_ADDR</code></td>
+<td><code>MVP_ENABLE_CACHE_REDIS=1</code> or <code>REDIS_ADDR</code></td>
+</tr>
+<tr>
+<td><code>storage-s3</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9610</strong> / <strong>9611</strong></td>
+<td><code>STORAGE_S3_GRPC_ADDR</code> / <code>STORAGE_S3_HTTP_ADDR</code></td>
+<td>optional S3/MinIO provider</td>
+</tr>
+<tr>
+<td><code>storage-ceph</code></td>
+<td>gRPC / health HTTP</td>
+<td><strong>9680</strong> / <strong>9681</strong></td>
+<td><code>STORAGE_CEPH_GRPC_ADDR</code> / <code>STORAGE_CEPH_HTTP_ADDR</code></td>
+<td>optional Ceph/RGW provider</td>
+</tr>
+</tbody></table>
+<hr>
 <h2>Remapped host ports (collision fixes)</h2>
 <p>Historical module defaults overlapped when several sidecars ran on one host. <strong>Current binary defaults and the host/installer scripts already use the remapped ports below.</strong> Treat older docs that still say the “former” value as stale.</p>
 <table>
@@ -585,10 +710,11 @@
 <li><a href="Configuration-Reference.html">Configuration Reference</a> — full env list</li>
 <li><a href="Getting-Started.html">Getting Started</a> — laptop install paths</li>
 <li><a href="Deployment.html">Deployment</a> — production TLS (no insecure-disable)</li>
-<li>Workspace <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> — product checklist</li>
+<li><a href="Roadmap.html">Roadmap</a> — open work stub</li>
 </ul>
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>

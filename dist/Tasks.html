@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -39,44 +45,35 @@
     </aside>
     <main id="main-content" class="content" tabindex="-1">
       <h1>Tasks</h1>
-<p>Living end-user product checklist for MuxCore (installer, fixture-first media path, self-hosted CI).</p>
+<p>Canonical open work lives in the workspace <strong><span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></strong> (sibling of <code>_mvp/</code>).</p>
+<p>This page is a stub so old wiki links still resolve. Do <strong>not</strong> maintain a separate checkbox list here.</p>
 <table>
 <thead>
 <tr>
-<th scope="col">Where</th>
-<th scope="col">What</th>
+<th scope="col">Need</th>
+<th scope="col">Go here</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>This wiki page</strong></td>
-<td>Short pointer + constraints</td>
+<td>Open platform work, parity appendices</td>
+<td><span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></td>
 </tr>
 <tr>
-<td><strong>Workspace</strong></td>
-<td>Canonical checklist: <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> (sibling of <code>_mvp/</code> in the local MuxCore multi-repo workspace)</td>
+<td>First household install</td>
+<td><a href="Getting-Started.html">Getting Started</a></td>
 </tr>
 <tr>
-<td><strong>Roadmap wiki page</strong></td>
-<td>Also redirects here — no separate checkbox roadmap</td>
+<td>CI / registry / scale-out</td>
+<td><a href="Deployment.html">Deployment</a></td>
+</tr>
+<tr>
+<td>Historical Roadmap links</td>
+<td><a href="Roadmap.html">Roadmap</a></td>
 </tr>
 </tbody></table>
-<p>Previous per-module <code>ROADMAP.md</code> files and older wiki Roadmap checklists are <strong>retired</strong>. Do not add new “see ROADMAP” links; point at <span class="workspace-file-ref" title="See workspace TASKS.md"><code>TASKS.md</code></span> or this page.</p>
-<h3>Constraints (same as workspace)</h3>
-<ul>
-<li>Laptop + GitHub <strong>free</strong> account only</li>
-<li>Self-hosted CI runners (<code>runs-on: self-hosted</code>); local registry for images</li>
-<li>Fixture / mock / httptest acquisition for product gates — <strong>no live pirate</strong> indexers or swarms as requirements</li>
-<li>No paid Actions / Packages / cloud IdP / debrid as hard dependencies</li>
-</ul>
-<h3>Doc entry points</h3>
-<ul>
-<li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>
-<li><a href="Deployment.html">Deployment</a> — single laptop, self-hosted CI, local registry</li>
-<li><a href="Configuration-Reference.html">Configuration Reference</a> — loom config and env overrides</li>
-<li><a href="Port-Map.html">Port Map</a> — canonical gRPC/HTTP ports for installer / <code>_mvp</code> (collision remaps)</li>
-</ul>
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>
