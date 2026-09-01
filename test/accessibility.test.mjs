@@ -13,6 +13,7 @@ const DIST = join(ROOT, "dist");
 /** Every HTML page in the static site (Home → index.html). */
 const ALL_PAGES = [
   "index.html",
+  "404.html",
   "Admin-API.html",
   "Architecture.html",
   "Configuration-Reference.html",
@@ -22,6 +23,7 @@ const ALL_PAGES = [
   "Deployment.html",
   "Event-System.html",
   "Getting-Started.html",
+  "Installer-Pin-Matrix.html",
   "Module-System.html",
   "Module-TLS-Authentication.html",
   "Port-Map.html",
@@ -104,6 +106,7 @@ describe("muxcore-docs page shell accessibility", () => {
       });
 
       it("marks the active nav item with aria-current", () => {
+        if (file === "404.html") return;
         const dom = loadPage(file);
         const { document } = dom.window;
         const current = document.querySelector('nav[aria-label="Pages"] [aria-current="page"]');
@@ -116,6 +119,14 @@ describe("muxcore-docs page shell accessibility", () => {
         const { document } = dom.window;
         const bad = document.querySelectorAll("main a[href^='../']");
         assert.equal(bad.length, 0, "workspace paths use workspace-file-ref, not links");
+      });
+
+      it("includes client-side search", () => {
+        const dom = loadPage(file);
+        const { document } = dom.window;
+        const search = document.querySelector("[data-doc-search]");
+        assert.ok(search, "search input is present");
+        assert.ok(search.labels?.length || search.getAttribute("aria-label"), "search is labelled");
       });
 
       it("passes axe WCAG 2.2 AA rules", async () => {

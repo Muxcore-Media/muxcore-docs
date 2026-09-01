@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build MuxCore docs from wiki markdown → dist/ static HTML.
- * Prefers ../core.wiki when present; otherwise uses ./wiki.
+ * Build MuxCore docs from committed wiki markdown → dist/ static HTML.
+ * Default source: ./wiki (override with MUXCORE_DOCS_WIKI).
  */
 import { marked } from "marked";
 import {
@@ -11,142 +11,39 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  LOCAL_WIKI,
+  enhanceAccessibility,
+  layout,
+  listWikiPages,
+  pageHref,
+  rewriteWikiLinks,
+  slug,
+  stripWorkspacePathLinks,
+  wikiSource,
+  parseSidebar,
+  stripHtml,
+} from "./lib/build-utils.mjs";
+
+export {
+  enhanceAccessibility,
+  layout,
+  listWikiPages,
+  pageHref,
+  parseSidebar,
+  rewriteWikiLinks,
+  slug,
+  stripWorkspacePathLinks,
+  wikiSource,
+} from "./lib/build-utils.mjs";
 
 const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const DIST = join(ROOT, "dist");
 const SITE = join(ROOT, "site");
-const LOCAL_WIKI = join(ROOT, "wiki");
-const SIBLING_WIKI = resolve(ROOT, "../core.wiki");
-
-function wikiSource() {
-  if (existsSync(join(SIBLING_WIKI, "Home.md"))) return SIBLING_WIKI;
-  if (existsSync(join(LOCAL_WIKI, "Home.md"))) return LOCAL_WIKI;
-  throw new Error(
-    "No wiki source found. Expected ../core.wiki or ./wiki with Home.md",
-  );
-}
-
-function slug(name) {
-  return basename(name, ".md");
-}
-
-function pageHref(name) {
-  const s = slug(name);
-  if (s === "Home") return "index.html";
-  return `${s}.html`;
-}
-
-/** Rewrite GitHub-wiki style links [Text](Page-Name) → Page-Name.html */
-function rewriteWikiLinks(html, pages) {
-  const byLower = new Map(
-    [...pages].map((p) => [p.toLowerCase(), p]),
-  );
-  return html.replace(
-    /href="([^"#?]+\.md|[^"#?/]+)"/gi,
-    (full, target) => {
-      let t = target.replace(/\.md$/i, "");
-      // Drop relative ../TASKS.md style links that leave the wiki
-      if (t.startsWith("..") || t.startsWith("http") || t.startsWith("/")) {
-        return full;
-      }
-      const hit = byLower.get(t.toLowerCase());
-      if (!hit) return full;
-      return `href="${pageHref(hit)}"`;
-    },
-  );
-}
-
-function parseSidebar(md, pages) {
-  const links = [];
-  for (const line of md.split("\n")) {
-    const m = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
-    if (!m) continue;
-    const [, label, target] = m;
-    const page = target.replace(/\.md$/i, "");
-    if (![...pages].some((p) => p.toLowerCase() === page.toLowerCase())) {
-      continue;
-    }
-    links.push({ label, href: pageHref(page), page });
-  }
-  return links;
-}
-
-function stripHtml(html) {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function escapeAttr(value) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;");
-}
-
-/** Static task-list checkboxes and data tables need explicit a11y metadata. */
-function enhanceAccessibility(html) {
-  html = html.replace(
-    /<li><input([^>]*\btype="checkbox"[^>]*)>([\s\S]*?)<\/li>/gi,
-    (match, attrs, rest) => {
-      const label = stripHtml(rest);
-      if (!label || /\baria-label=/.test(attrs)) return match;
-      return `<li><input${attrs} aria-label="${escapeAttr(label)}">${rest}</li>`;
-    },
-  );
-
-  html = html.replace(/<thead>([\s\S]*?)<\/thead>/gi, (_, inner) => {
-    const scoped = inner.replace(
-      /<th(?![^>]*\bscope=)([^>]*)>/gi,
-      '<th scope="col"$1>',
-    );
-    return `<thead>${scoped}</thead>`;
-  });
-
-  return html;
-}
-
-function layout({ title, body, nav, active }) {
-  const navHtml = nav
-    .map((item) => {
-      const isActive = item.page === active;
-      const attrs = isActive
-        ? ' class="active" aria-current="page"'
-        : "";
-      return `<a href="${item.href}"${attrs}>${item.label}</a>`;
-    })
-    .join("\n        ");
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${title} · MuxCore Docs</title>
-  <meta name="description" content="${title} — MuxCore documentation." />
-  <link rel="stylesheet" href="assets/style.css" />
-</head>
-<body>
-  <a class="skip-link" href="#main-content">Skip to main content</a>
-  <div class="shell">
-    <aside class="sidebar" aria-label="Documentation navigation">
-      <a class="brand" href="index.html">MuxCore</a>
-      <p class="tag">Documentation</p>
-      <nav aria-label="Pages">
-        ${navHtml}
-      </nav>
-    </aside>
-    <main id="main-content" class="content" tabindex="-1">
-      ${body}
-    </main>
-  </div>
-</body>
-</html>
-`;
-}
 
 function syncWikiIntoRepo(src) {
   if (process.env.MUXCORE_DOCS_SKIP_WIKI_SYNC === "1") return;
@@ -159,6 +56,22 @@ function syncWikiIntoRepo(src) {
   console.log(`synced wiki → ${LOCAL_WIKI}`);
 }
 
+function buildSearchIndex(entries) {
+  return entries.map(({ title, href, text }) => ({ title, href, text }));
+}
+
+function notFoundPage(nav) {
+  const body = `<h1>Page not found</h1>
+<p>The page you requested is not in this static snapshot. Try search in the sidebar or return to <a href="index.html">Home</a>.</p>`;
+  return layout({
+    title: "Not found",
+    body,
+    nav,
+    active: "",
+    includeSearch: true,
+  });
+}
+
 function main() {
   const src = wikiSource();
   console.log(`wiki source: ${src}`);
@@ -167,9 +80,7 @@ function main() {
   const files = readdirSync(src).filter(
     (f) => f.endsWith(".md") && !f.startsWith("."),
   );
-  const pages = new Set(
-    files.filter((f) => f !== "_Sidebar.md").map((f) => slug(f)),
-  );
+  const pages = new Set(listWikiPages(src));
 
   let nav = [];
   const sidebarPath = join(src, "_Sidebar.md");
@@ -189,6 +100,9 @@ function main() {
   rmSync(DIST, { recursive: true, force: true });
   mkdirSync(join(DIST, "assets"), { recursive: true });
   cpSync(join(SITE, "style.css"), join(DIST, "assets", "style.css"));
+  cpSync(join(SITE, "search.js"), join(DIST, "assets", "search.js"));
+
+  const searchEntries = [];
 
   for (const file of files) {
     if (file === "_Sidebar.md") continue;
@@ -196,26 +110,32 @@ function main() {
     const md = readFileSync(join(src, file), "utf8");
     let body = marked.parse(md, { async: false });
     body = rewriteWikiLinks(body, pages);
-    // Workspace paths (../…) are not routable in the static site — use non-link refs.
-    body = body.replace(
-      /<a href="\.\.\/([^"]+)">([\s\S]*?)<\/a>/g,
-      (_, path, inner) =>
-        `<span class="workspace-file-ref" title="See workspace ${escapeAttr(path)}">${inner}</span>`,
-    );
+    body = stripWorkspacePathLinks(body);
     body = enhanceAccessibility(body);
 
+    const title = name.replace(/-/g, " ");
     const html = layout({
-      title: name.replace(/-/g, " "),
+      title,
       body,
       nav,
       active: name,
     });
     const out = join(DIST, pageHref(name));
     writeFileSync(out, html);
+    searchEntries.push({
+      title,
+      href: pageHref(name),
+      text: stripHtml(body),
+    });
     console.log(`  ${file} → ${basename(out)}`);
   }
 
-  // Convenience: also keep raw markdown in dist for grep / offline
+  writeFileSync(
+    join(DIST, "assets", "search-index.json"),
+    JSON.stringify(buildSearchIndex(searchEntries)),
+  );
+  writeFileSync(join(DIST, "404.html"), notFoundPage(nav));
+
   mkdirSync(join(DIST, "md"), { recursive: true });
   for (const file of files) {
     cpSync(join(src, file), join(DIST, "md", file));

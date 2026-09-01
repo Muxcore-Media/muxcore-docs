@@ -310,6 +310,21 @@ Used so host-mode processes and smoke clients agree on ports. Compose maps the s
 | `JELLYFIN_GRPC_CLIENT_ADDR` | `127.0.0.1:9475` | `jellyfin` bridge |
 | `ROOTS_GRPC_ADDR` | `127.0.0.1:9540` | `media-root-folders` (`_mvp`) |
 | `HEALTH_MONITOR_GRPC_CLIENT_ADDR` | `127.0.0.1:9202` | `health-monitor` (installer) |
+| `SUBTITLES_GRPC_ADDR` / `SUBTITLES_HTTP_ADDR` | `127.0.0.1:9520` / `:9521` | `media-subtitles` |
+| `TRANSCODER_GRPC_ADDR` / `TRANSCODER_HTTP_ADDR` | `127.0.0.1:9525` / `:9526` | `media-transcoder` (BFF transcode dial) |
+| `PLEX_GRPC_ADDR` / `PLEX_HTTP_ADDR` | `127.0.0.1:9476` / `:8476` | `plex` bridge |
+| `EMBY_GRPC_ADDR` / `EMBY_HTTP_ADDR` | `127.0.0.1:9477` / `:8477` | `emby` bridge |
+| `MUSIC_GRPC_ADDR` | `127.0.0.1:9640` | `media-music` |
+| `BOOKS_GRPC_ADDR` | `127.0.0.1:9650` | `media-books` |
+| `COMICS_GRPC_ADDR` | `127.0.0.1:9660` | `media-comics` |
+| `AUDIOBOOKS_GRPC_ADDR` | `127.0.0.1:9670` | `media-audiobooks` |
+| `USERDATA_LOCAL_HTTP_ADDR` / `USERDATA_LOCAL_GRPC_ADDR` | `:9672` / `:9673` | `userdata-local` (`MVP_ENABLE_USERDATA_LOCAL=1`) |
+| `LIST_SYNC_GRPC_ADDR` | `127.0.0.1:9530` | `media-list-sync` |
+| `DLNA_HTTP_ADDR` / `DLNA_GRPC_ADDR` | `:9750` / `:9751` | `media-dlna` |
+| `CACHE_LOCAL_GRPC_ADDR` | `127.0.0.1:9602` | `cache-local` |
+| `CACHE_REDIS_GRPC_ADDR` | `127.0.0.1:9600` | `cache-redis` |
+| `STORAGE_S3_GRPC_ADDR` | `127.0.0.1:9610` | `storage-s3` |
+| `STORAGE_CEPH_GRPC_ADDR` | `127.0.0.1:9680` | `storage-ceph` |
 
 Core loom ports (not env overrides in the demo `.env`, but expected defaults): HTTP **`:8080`**, gRPC mesh **`:9090`**. Admin UI listens on **`:8082`** (remapped off `:8080`). Consumer SPA (when enabled) is typically **`:5173`**. Indexer gRPC **`:9485`** only when live acquisition is opted in (remapped off ffprobe `:9480`).
 

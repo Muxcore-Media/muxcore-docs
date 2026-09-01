@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -52,7 +58,7 @@
 </ol>
 <hr>
 <h2>Authentication</h2>
-<p>Authentication is <strong>module-driven</strong> — the core doesn&#39;t authenticate users directly. You install an auth module that connects to your existing identity system:</p>
+<p>Authentication is <strong>module-driven</strong> — the core doesn&#39;t authenticate users directly. You install <strong>one</strong> auth module that implements <code>AuthProvider</code>:</p>
 <table>
 <thead>
 <tr>
@@ -65,10 +71,6 @@
 <td>Username + password + optional 2FA, stored locally</td>
 </tr>
 <tr>
-<td><strong>API Tokens</strong></td>
-<td>Scoped, revocable tokens for programmatic access (via auth modules)</td>
-</tr>
-<tr>
 <td><strong>OAuth/OIDC</strong> (<a href="https://github.com/Muxcore-Media/auth-oidc"><code>auth-oidc</code></a>)</td>
 <td>Authentik, Authelia, Keycloak, Google, GitHub — <strong>shipped</strong></td>
 </tr>
@@ -77,7 +79,7 @@
 <td>Planned (<code>auth-ldap</code> not bootstrapped yet)</td>
 </tr>
 </tbody></table>
-<p>Multiple auth modules can be active simultaneously. Your family uses local accounts. Your scripts use API tokens. Your admin uses OIDC.</p>
+<p>Run <strong>only one</strong> <code>AuthProvider</code> per mesh — typically <strong><code>auth-local</code> XOR <code>auth-oidc</code></strong>, not both. API tokens are a feature <strong>within</strong> the active auth module, not a separate provider.</p>
 <h3>API Tokens</h3>
 <pre><code class="language-json">{
   &quot;name&quot;: &quot;readonly-monitor&quot;,
@@ -297,7 +299,7 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 <ul>
 <li><strong>Do not</strong> set <code>MUXCORE_INSECURE_DISABLE_TLS=true</code> on staging/production. Dev/unit tests may still use it locally.</li>
 <li>Staging cutover checklist: <span class="workspace-file-ref" title="See workspace _mvp/tls/MTLS-STAGING.md"><code>_mvp/tls/MTLS-STAGING.md</code></span> (<code>muxcore.staging.json</code> + <code>run-host-staging.sh</code>).</li>
-<li><strong>Auth URL split:</strong> browsers use the public auth base (e.g. <code>https://auth.gringotts</code>); server-side code exchange uses the internal base (e.g. <code>http://127.0.0.1:9401</code>). Never point admin-ui auth vars at the admin UI port itself.</li>
+<li><strong>Auth URL split:</strong> browsers use the public auth base (e.g. <code>https://auth.zem.systems</code>); server-side code exchange uses the internal base (e.g. <code>http://127.0.0.1:9401</code>). Never point admin-ui auth vars at the admin UI port itself.</li>
 </ul>
 <h3>Phase 2 / 3 identity &amp; SIEM status</h3>
 <table>
@@ -350,5 +352,6 @@ ep.RotateKey(ctx)            // new key for future encryptions, old key still wo
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>

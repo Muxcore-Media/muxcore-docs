@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Roadmap · MuxCore Docs</title>
-  <meta name="description" content="Roadmap — MuxCore documentation." />
+  <title>Installer Pin Matrix · MuxCore Docs</title>
+  <meta name="description" content="Installer Pin Matrix — MuxCore documentation." />
   <link rel="stylesheet" href="assets/style.css" />
 </head>
 <body>
@@ -22,7 +22,7 @@
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
-        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
+        <a href="Installer-Pin-Matrix.html" class="active" aria-current="page">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -39,38 +39,19 @@
         <a href="Spool-Security.html">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
         <a href="Tasks.html">Tasks</a>
-        <a href="Roadmap.html" class="active" aria-current="page">Roadmap</a>
+        <a href="Roadmap.html">Roadmap</a>
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
     <main id="main-content" class="content" tabindex="-1">
-      <h1>Roadmap</h1>
-<p>Canonical open work lives in the workspace <strong><span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></strong> (sibling of <code>_mvp/</code>).</p>
-<p>This page is a stub so old wiki links still resolve. Do <strong>not</strong> maintain a separate checkbox list here.</p>
-<table>
-<thead>
-<tr>
-<th scope="col">Need</th>
-<th scope="col">Go here</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Open platform work, parity appendices</td>
-<td><span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></td>
-</tr>
-<tr>
-<td>First laptop install</td>
-<td><a href="Getting-Started.html">Getting Started</a></td>
-</tr>
-<tr>
-<td>CI / registry / scale-out</td>
-<td><a href="Deployment.html">Deployment</a></td>
-</tr>
-<tr>
-<td>Historical Tasks links</td>
-<td><a href="Tasks.html">Tasks</a> (if present)</td>
-</tr>
-</tbody></table>
+      <h1>Installer pin matrix</h1>
+<p>Canonical pin tables and the atomic update rule live in the installer repo:</p>
+<ul>
+<li>Source of truth: <a href="https://github.com/Muxcore-Media/muxcore-installer/blob/main/versions.env"><code>muxcore-installer/versions.env</code></a></li>
+<li>Documented matrix: <a href="https://github.com/Muxcore-Media/muxcore-installer/blob/main/PIN-MATRIX.md"><code>muxcore-installer/PIN-MATRIX.md</code></a></li>
+<li>Check: <code>muxcore-installer/scripts/check-pin-matrix.sh</code> (compares installer pins to <code>spool/tags/*.json</code>)</li>
+</ul>
+<p>When bumping a module tag used by both installer and spool, update both in the same change set.</p>
 
     </main>
   </div>

@@ -18,16 +18,15 @@ Think of MuxCore security like a building with multiple layers:
 
 ## Authentication
 
-Authentication is **module-driven** — the core doesn't authenticate users directly. You install an auth module that connects to your existing identity system:
+Authentication is **module-driven** — the core doesn't authenticate users directly. You install **one** auth module that implements `AuthProvider`:
 
 | Auth Module | How It Works |
 |-------------|-------------|
 | **Local Accounts** ([`auth-local`](https://github.com/Muxcore-Media/auth-local)) | Username + password + optional 2FA, stored locally |
-| **API Tokens** | Scoped, revocable tokens for programmatic access (via auth modules) |
 | **OAuth/OIDC** ([`auth-oidc`](https://github.com/Muxcore-Media/auth-oidc)) | Authentik, Authelia, Keycloak, Google, GitHub — **shipped** |
 | **LDAP / Active Directory** | Planned (`auth-ldap` not bootstrapped yet) |
 
-Multiple auth modules can be active simultaneously. Your family uses local accounts. Your scripts use API tokens. Your admin uses OIDC.
+Run **only one** `AuthProvider` per mesh — typically **`auth-local` XOR `auth-oidc`**, not both. API tokens are a feature **within** the active auth module, not a separate provider.
 
 ### API Tokens
 
@@ -306,7 +305,7 @@ On the MuxCore MVP host:
 
 - **Do not** set `MUXCORE_INSECURE_DISABLE_TLS=true` on staging/production. Dev/unit tests may still use it locally.
 - Staging cutover checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md) (`muxcore.staging.json` + `run-host-staging.sh`).
-- **Auth URL split:** browsers use the public auth base (e.g. `https://auth.gringotts`); server-side code exchange uses the internal base (e.g. `http://127.0.0.1:9401`). Never point admin-ui auth vars at the admin UI port itself.
+- **Auth URL split:** browsers use the public auth base (e.g. `https://auth.zem.systems`); server-side code exchange uses the internal base (e.g. `http://127.0.0.1:9401`). Never point admin-ui auth vars at the admin UI port itself.
 
 ### Phase 2 / 3 identity & SIEM status
 

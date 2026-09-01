@@ -13,10 +13,16 @@
     <aside class="sidebar" aria-label="Documentation navigation">
       <a class="brand" href="index.html">MuxCore</a>
       <p class="tag">Documentation</p>
+      <form class="site-search" role="search" action="index.html">
+      <label class="visually-hidden" for="doc-search">Search documentation</label>
+      <input id="doc-search" type="search" name="q" placeholder="Search docs…" autocomplete="off" spellcheck="false" data-doc-search />
+      <ul class="search-results" id="search-results" hidden aria-live="polite"></ul>
+    </form>
       <nav aria-label="Pages">
         <a href="index.html">Home</a>
         <a href="Core-Concepts.html">Core Concepts</a>
         <a href="Getting-Started.html">Getting Started</a>
+        <a href="Installer-Pin-Matrix.html">Installer Pin Matrix</a>
         <a href="Configuration-Reference.html">Configuration Reference</a>
         <a href="Port-Map.html">Port Map</a>
         <a href="Architecture.html">Architecture</a>
@@ -39,18 +45,23 @@
     </aside>
     <main id="main-content" class="content" tabindex="-1">
       <h1>Contributing to MuxCore</h1>
-<p><strong>Thank you for considering contributing to MuxCore.</strong> This guide covers development setup, contract contribution guidelines, and the PR process.</p>
+<p><strong>Thank you for considering contributing to MuxCore.</strong> Origin development runs on <strong>Forgejo</strong> (<code>git.zem.systems</code>); GitHub clone/PR/wiki-push is the optional public consumer path later.</p>
 <hr>
 <h2>Development Setup</h2>
 <h3>Prerequisites</h3>
 <ul>
 <li><strong>Go 1.26.x</strong> (see <code>go.mod</code>; currently <code>go 1.26.4</code>)</li>
 <li><strong>protoc</strong> + <strong>protoc-gen-go</strong> + <strong>protoc-gen-go-grpc</strong> (for proto changes)</li>
-<li><strong>git</strong> + <strong>GitHub account</strong></li>
+<li><strong>git</strong> + SSH access to Forgejo</li>
 </ul>
-<h3>Clone and Build</h3>
-<pre><code class="language-bash">git clone https://github.com/Muxcore-Media/core.git
+<h3>Clone and Build (origin)</h3>
+<pre><code class="language-bash">git clone ssh://forgejo@git.zem.systems:2222/muxcore/core.git
 cd core
+
+export GOPRIVATE=&#39;github.com/Muxcore-Media/*&#39;
+export GONOSUMDB=&#39;github.com/Muxcore-Media/*&#39;
+git config --global url.&quot;ssh://forgejo@git.zem.systems:2222/muxcore/&quot;.insteadOf &quot;https://github.com/Muxcore-Media/&quot;
+
 go build ./...
 </code></pre>
 <h3>Run Tests</h3>
@@ -58,6 +69,7 @@ go build ./...
 # or full gate:
 make ci
 </code></pre>
+<p>Origin CI: <code>.forgejo/workflows/ci.yml</code> with <code>runs-on: native</code> on the vault Forgejo runner. Do <strong>not</strong> treat <code>.github/workflows/</code> as the merge gate.</p>
 <h3>Lint</h3>
 <pre><code class="language-bash">golangci-lint run
 </code></pre>
@@ -97,6 +109,7 @@ MUXCORE_INSECURE_DISABLE_TLS=true go run ./cmd/muxcored
 </ol>
 <h3>Module Contributions</h3>
 <p>Modules are standalone binaries, not compile-time imports. See <a href="Writing-Modules.html">Writing Modules</a> for the sidecar pattern. Reference implementation: <a href="https://github.com/Muxcore-Media/downloader-native-torrent">downloader-native-torrent</a>.</p>
+<p>Each module repo carries its own <code>.forgejo/workflows/ci.yml</code> (<code>runs-on: native</code>).</p>
 <hr>
 <h2>PR Process</h2>
 <h3>Branching</h3>
@@ -126,20 +139,21 @@ Longer explanation if needed. What changed and why.
 <li><code>docs: update roadmap to separate contracts from implementations</code></li>
 </ul>
 <h3>Review</h3>
-<p>All PRs require review. CI must pass (build + test + lint). Doc-only PRs still require CI green.</p>
+<p>All PRs require review. Forgejo CI must pass (build + test + lint). Doc-only PRs still require CI green.</p>
 <h3>Merging</h3>
 <p>Squash-merge to <code>master</code>. Branch protection requires PRs, blocks force push, blocks branch deletion.</p>
 <hr>
 <h2>Documentation</h2>
-<h3>Wiki</h3>
-<p>The wiki at <code>github.com/Muxcore-Media/core.wiki</code> is the primary user-facing documentation. When adding or changing a feature:</p>
+<h3>Wiki (<code>muxcore-docs</code>)</h3>
+<p>Committed wiki markdown lives in <strong><code>muxcore-docs/wiki/</code></strong> in the umbrella workspace (or the <code>muxcore/muxcore-docs</code> Forgejo repo). When adding or changing a feature:</p>
 <ol>
-<li>Update the relevant wiki page</li>
+<li>Update the relevant wiki page under <code>muxcore-docs/wiki/</code></li>
 <li>If it&#39;s a new contract, add it to the Contracts page</li>
 <li>If it&#39;s a new config option, add it to the Configuration Reference</li>
-<li>Update the Roadmap if applicable</li>
+<li>Point Roadmap/Tasks stubs at workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span> — do not maintain parallel checkbox lists</li>
 </ol>
-<p>Wiki changes are pushed directly to the wiki repo&#39;s <code>master</code> branch.</p>
+<p>Rebuild the static site: <code>cd muxcore-docs &amp;&amp; npm ci &amp;&amp; make build &amp;&amp; npm test</code>.</p>
+<p><strong>Public consumer path (later):</strong> GitHub wiki (<code>core.wiki</code>) and GitHub Pages (<code>.github/workflows/pages.yml</code>) mirror the committed snapshot — they are not the origin documentation workflow.</p>
 <h3>Code Documentation</h3>
 <ul>
 <li>All exported types, functions, and interfaces must have GoDoc comments</li>
@@ -161,5 +175,6 @@ Longer explanation if needed. What changed and why.
 
     </main>
   </div>
+  <script src="assets/search.js" defer></script>
 </body>
 </html>
