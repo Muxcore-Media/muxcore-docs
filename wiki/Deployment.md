@@ -55,7 +55,7 @@ One host, one `muxcored`, modules as sidecars (spawned by core or started by the
 ```bash
 cd _mvp
 export MUXCORE_REGISTRY=git.zem.systems/muxcore   # or localhost:5000/muxcore
-export MUXCORE_IMAGE_TAG=v0.5.8
+export MUXCORE_IMAGE_TAG=v0.5.7
 export DOWNLOADER_ENGINE=fixture
 docker compose -f docker-compose.registry.yml pull
 docker compose -f docker-compose.registry.yml up -d
@@ -96,10 +96,10 @@ MuxCore packaging assumes a **laptop or home lab** plus **Forgejo origin** on va
 cd _mvp
 ./scripts/local-registry.sh start
 export MUXCORE_REGISTRY=localhost:5000/muxcore
-./scripts/publish-muxcored-local.sh v0.5.8
+./scripts/publish-muxcored-local.sh v0.5.7
 
 # Install host uses the same MUXCORE_REGISTRY + docker-compose.registry.yml
-export MUXCORE_IMAGE_TAG=v0.5.8
+export MUXCORE_IMAGE_TAG=v0.5.7
 docker compose -f docker-compose.registry.yml pull
 docker compose -f docker-compose.registry.yml up -d
 ```
