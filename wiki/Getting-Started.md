@@ -46,10 +46,10 @@ cd _mvp
 # LAN registry (no Forgejo yet)
 ./scripts/local-registry.sh start
 export MUXCORE_REGISTRY=localhost:5000/muxcore
-./scripts/publish-muxcored-local.sh v0.5.8
+./scripts/publish-muxcored-local.sh v0.5.7
 
 # Forgejo package registry (default MUXCORE_REGISTRY when unset in publish script)
-./scripts/publish-muxcored-local.sh v0.5.8
+./scripts/publish-muxcored-local.sh v0.5.7
 # default: git.zem.systems/muxcore
 ```
 
@@ -66,7 +66,7 @@ echo "$FORGEJO_TOKEN" | podman login git.zem.systems -u <user> --password-stdin
 ```bash
 cd _mvp
 export MUXCORE_REGISTRY=localhost:5000/muxcore   # or git.zem.systems/muxcore
-export MUXCORE_IMAGE_TAG=v0.5.8
+export MUXCORE_IMAGE_TAG=v0.5.7
 export DOWNLOADER_ENGINE=fixture
 docker compose -f docker-compose.registry.yml pull
 docker compose -f docker-compose.registry.yml up -d
@@ -77,7 +77,7 @@ Default operator URLs (see [Port Map](Port-Map)):
 
 | Surface | URL |
 |---------|-----|
-| Admin UI | `http://127.0.0.1:9080` (registry compose) |
+| Admin UI | `http://127.0.0.1:8082` (registry compose) |
 | REST API | `http://127.0.0.1:18080` |
 | Core health | `http://127.0.0.1:8080/health` |
 
