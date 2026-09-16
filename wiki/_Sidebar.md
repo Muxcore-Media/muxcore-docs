@@ -19,6 +19,4 @@
 - [Spool & Marketplace](Spool-and-Marketplace)
 - [Spool Security](Spool-Security)
 - [Admin API](Admin-API)
-- [Tasks](Tasks)
-- [Roadmap](Roadmap)
 - [Contributing](Contributing)

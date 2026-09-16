@@ -38,15 +38,13 @@
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
-        <a href="Tasks.html">Tasks</a>
-        <a href="Roadmap.html">Roadmap</a>
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
     <main id="main-content" class="content" tabindex="-1">
       <h1>Getting Started</h1>
 <p><strong>Install MuxCore on one laptop from a Forgejo or LAN OCI registry (preferred), release binaries, or the installer.</strong> You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.</p>
-<p>Active product work is tracked in <a href="Tasks.html">Tasks</a> → workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>.</p>
+<p>Active product work is tracked in the workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span> (umbrella GitHub Issues for tickets).</p>
 <hr>
 <h2>What you are installing</h2>
 <p>MuxCore is a <strong>loom</strong> (<code>muxcored</code>) plus <strong>sidecar modules</strong> (auth, libraries, automation, downloader, UIs). On a laptop, the supported first-run is:</p>
@@ -134,7 +132,7 @@ docker compose -f docker-compose.registry.yml up -d
 <p><strong>Deferred:</strong> public <code>ghcr.io/muxcore-media/*</code> mirror via <code>_mvp/docker-compose.ghcr.yml</code> — requires GitHub <code>write:packages</code>; use Forgejo/LAN until that scope exists.</p>
 <hr>
 <h2>Path B — Installer or manual release binaries</h2>
-<p>The <strong><code>muxcore-installer</code></strong> TUI (see <a href="Tasks.html">Tasks</a>) can fetch pinned release tarballs when registry images are unavailable. <strong>GitHub Releases</strong> remain an optional public mirror for binaries — not the origin gate for household compose.</p>
+<p>The <strong><code>muxcore-installer</code></strong> TUI can fetch pinned release tarballs when registry images are unavailable. <strong>GitHub Releases</strong> remain an optional public mirror for binaries — not the origin gate for household compose.</p>
 <p>When available the installer:</p>
 <ol>
 <li>Downloads pinned <code>muxcored</code> + module release assets (Forgejo origin preferred; GitHub mirror when published).</li>
@@ -234,7 +232,7 @@ cp .env.example .env
 <td>Recommended if you opt in</td>
 </tr>
 </tbody></table>
-<p>Live acquisition remains available for operators who explicitly enable it. It is <strong>never</strong> a CI gate, install prerequisite, or “Getting Started” requirement. See <a href="Tasks.html">Tasks</a> and workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span> for constraints.</p>
+<p>Live acquisition remains available for operators who explicitly enable it. It is <strong>never</strong> a CI gate, install prerequisite, or “Getting Started” requirement. See workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span> for constraints.</p>
 <h3>Default knobs</h3>
 <table>
 <thead>
@@ -320,7 +318,6 @@ cp .env.example .env
 <li><a href="#fixture-first-acquisition">Fixture-first acquisition</a> — already above; share with anyone tempted to “just hit Apibay for the demo”</li>
 <li><a href="Core-Concepts.html">Core Concepts</a> — loom, threads, signals</li>
 <li><a href="Deployment.html">Deployment</a> — single laptop → cluster; self-hosted CI + local registry</li>
-<li><a href="Tasks.html">Tasks</a> — stub to <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></li>
 <li><a href="Module-System.html">Module System</a> — what each sidecar does</li>
 </ul>
 
