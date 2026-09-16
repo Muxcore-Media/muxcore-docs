@@ -143,7 +143,7 @@ Committed wiki markdown lives in **`muxcore-docs/wiki/`** in the umbrella worksp
 1. Update the relevant wiki page under `muxcore-docs/wiki/`
 2. If it's a new contract, add it to the Contracts page
 3. If it's a new config option, add it to the Configuration Reference
-4. Point Roadmap/Tasks stubs at workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) — do not maintain parallel checkbox lists
+4. Keep open work in workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) — do not add Roadmap/Tasks wiki pages or per-module checklists
 
 Rebuild the static site: `cd muxcore-docs && npm ci && make build && npm test`.
 

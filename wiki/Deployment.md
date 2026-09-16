@@ -2,7 +2,7 @@
 
 **Day one is one laptop.** Prefer the [installer / release-binary path](Getting-Started) over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.
 
-Active checklist: [Tasks](Tasks) → workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
+Active checklist: workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
 
 ---
 
@@ -176,7 +176,7 @@ services:
 
 ## Phase 3: Kubernetes (later)
 
-Full orchestration (HA cores, GPU pools, Rook/Ceph or MinIO) is optional and **not** day-1. Prefer installer/compose until you need it. Operator/Helm work is tracked under [Tasks](Tasks); samples should use **local** images only (kind/k3d + `localhost:5000`), not paid cloud registries as a hard dependency.
+Full orchestration (HA cores, GPU pools, Rook/Ceph or MinIO) is optional and **not** day-1. Prefer installer/compose until you need it. Operator/Helm work is tracked in workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md); samples should use **local** images only (kind/k3d + `localhost:5000`), not paid cloud registries as a hard dependency.
 
 ---
 
@@ -278,4 +278,3 @@ Public browser auth should use a TLS-terminated hostname (e.g. `https://auth.zem
 - [Getting Started](Getting-Started) — installer / release binaries + fixture-first acquisition
 - [Security](Security) — TLS, mTLS, join tokens
 - [Core Concepts](Core-Concepts) — cross-node tracking and failover
-- [Tasks](Tasks) — stub to [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md)

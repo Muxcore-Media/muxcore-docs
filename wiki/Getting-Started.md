@@ -2,7 +2,7 @@
 
 **Install MuxCore on one laptop from a Forgejo or LAN OCI registry (preferred), release binaries, or the installer.** You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.
 
-Active product work is tracked in [Tasks](Tasks) → workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
+Active product work is tracked in the workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) (umbrella GitHub Issues for tickets).
 
 ---
 
@@ -89,7 +89,7 @@ Full operator doc: [`_mvp/docs/PUBLIC-INSTALL.md`](../_mvp/docs/PUBLIC-INSTALL.m
 
 ## Path B — Installer or manual release binaries
 
-The **`muxcore-installer`** TUI (see [Tasks](Tasks)) can fetch pinned release tarballs when registry images are unavailable. **GitHub Releases** remain an optional public mirror for binaries — not the origin gate for household compose.
+The **`muxcore-installer`** TUI can fetch pinned release tarballs when registry images are unavailable. **GitHub Releases** remain an optional public mirror for binaries — not the origin gate for household compose.
 
 When available the installer:
 
@@ -197,7 +197,7 @@ Operator URLs after host up: `_mvp/run/VIEW-ME.txt`. Treat `_mvp` as upstream fo
 | TMDB network / API key | No (`TMDB_FIXTURE=1`) | Optional real key |
 | VPN | No | Recommended if you opt in |
 
-Live acquisition remains available for operators who explicitly enable it. It is **never** a CI gate, install prerequisite, or “Getting Started” requirement. See [Tasks](Tasks) and workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) for constraints.
+Live acquisition remains available for operators who explicitly enable it. It is **never** a CI gate, install prerequisite, or “Getting Started” requirement. See workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) for constraints.
 
 ### Default knobs
 
@@ -279,5 +279,4 @@ Full operator checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.m
 - [Fixture-first acquisition](#fixture-first-acquisition) — already above; share with anyone tempted to “just hit Apibay for the demo”
 - [Core Concepts](Core-Concepts) — loom, threads, signals
 - [Deployment](Deployment) — single laptop → cluster; self-hosted CI + local registry
-- [Tasks](Tasks) — stub to [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md)
 - [Module System](Module-System) — what each sidecar does

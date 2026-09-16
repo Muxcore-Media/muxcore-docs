@@ -44,7 +44,7 @@ export TMDB_FIXTURE=1
 muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 ```
 
-[Getting Started](Getting-Started) covers registry compose, release layout, fixture-first acquisition (no live pirate required), and verification. Active work: [Tasks](Tasks) → [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
+[Getting Started](Getting-Started) covers registry compose, release layout, fixture-first acquisition (no live pirate required), and verification. Open work: workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
 
 ## Quick Navigation
 
@@ -53,7 +53,7 @@ muxcored --tag media --spool https://github.com/Muxcore-Media/spool
 | [Core Concepts](Core-Concepts) — how it all fits together | [Module System](Module-System) — every type of module explained | [Getting Started](Getting-Started) — install and configure; [Port Map](Port-Map) — gRPC/HTTP ports |
 | [Events & Storage](Event-System) — how communication works | [Writing Modules](Writing-Modules) — build your own module | [Deployment](Deployment) — single node to cluster |
 | | [Contracts Reference](Contracts) — every interface in detail | [Security](Security) — auth, TLS, permissions |
-| | [Workflow Engine](Workflow-Engine) — multi-step pipelines | [Tasks](Tasks) — [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) |
+| | [Workflow Engine](Workflow-Engine) — multi-step pipelines | Open work — [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) |
 | | | [Architecture](Architecture) — bootstrap, gRPC services, cluster |
 
 ---

@@ -175,4 +175,3 @@ Same numbers as installer `VIEW-ME.txt` / `_mvp` Endpoints:
 - [Configuration Reference](Configuration-Reference) — full env list
 - [Getting Started](Getting-Started) — laptop install paths
 - [Deployment](Deployment) — production TLS (no insecure-disable)
-- [Roadmap](Roadmap) — open work stub

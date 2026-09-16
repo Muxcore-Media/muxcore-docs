@@ -38,15 +38,13 @@
         <a href="Spool-and-Marketplace.html">Spool & Marketplace</a>
         <a href="Spool-Security.html">Spool Security</a>
         <a href="Admin-API.html">Admin API</a>
-        <a href="Tasks.html">Tasks</a>
-        <a href="Roadmap.html">Roadmap</a>
         <a href="Contributing.html">Contributing</a>
       </nav>
     </aside>
     <main id="main-content" class="content" tabindex="-1">
       <h1>Deployment</h1>
 <p><strong>Day one is one laptop.</strong> Prefer the <a href="Getting-Started.html">installer / release-binary path</a> over cloning the workspace or standing up Kubernetes. Scale out only when a single node is not enough.</p>
-<p>Active checklist: <a href="Tasks.html">Tasks</a> → workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>.</p>
+<p>Active checklist: workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>.</p>
 <hr>
 <h2>Day-1 preference</h2>
 <table>
@@ -224,7 +222,7 @@ services:
 </code></pre>
 <hr>
 <h2>Phase 3: Kubernetes (later)</h2>
-<p>Full orchestration (HA cores, GPU pools, Rook/Ceph or MinIO) is optional and <strong>not</strong> day-1. Prefer installer/compose until you need it. Operator/Helm work is tracked under <a href="Tasks.html">Tasks</a>; samples should use <strong>local</strong> images only (kind/k3d + <code>localhost:5000</code>), not paid cloud registries as a hard dependency.</p>
+<p>Full orchestration (HA cores, GPU pools, Rook/Ceph or MinIO) is optional and <strong>not</strong> day-1. Prefer installer/compose until you need it. Operator/Helm work is tracked in workspace <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span>; samples should use <strong>local</strong> images only (kind/k3d + <code>localhost:5000</code>), not paid cloud registries as a hard dependency.</p>
 <hr>
 <h2>Clustering: auto-join</h2>
 <h3>On the new node</h3>
@@ -331,7 +329,6 @@ export MUXCORE_GRPC_CA_CERT_DIR=/etc/muxcore/ca
 <li><a href="Getting-Started.html">Getting Started</a> — installer / release binaries + fixture-first acquisition</li>
 <li><a href="Security.html">Security</a> — TLS, mTLS, join tokens</li>
 <li><a href="Core-Concepts.html">Core Concepts</a> — cross-node tracking and failover</li>
-<li><a href="Tasks.html">Tasks</a> — stub to <span class="workspace-file-ref" title="See workspace MASTER-ROADMAP.md"><code>MASTER-ROADMAP.md</code></span></li>
 </ul>
 
     </main>

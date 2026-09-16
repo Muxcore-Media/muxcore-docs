@@ -23,9 +23,9 @@ Use `nix-shell -p nodejs --run 'cd muxcore-docs && npm ci && npm test'` when Nod
 
 ## Content policy
 
-- **Roadmap / Tasks wiki pages** are stubs pointing at workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md). Do not maintain parallel checkbox lists in the wiki.
+- Do **not** keep Roadmap or Tasks wiki pages. Canonical open work is workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) and umbrella GitHub Issues.
 - After material platform milestones, update Getting Started, Deployment, Security, Port Map, and Configuration Reference here; then rebuild `dist/`.
-- Workspace path links (`../TASKS.md`, `../_mvp/…`) become non-navigable `workspace-file-ref` spans in the static site — prefer wiki page links or plain prose for operator docs.
+- Workspace path links (`../MASTER-ROADMAP.md`, `../_mvp/…`) become non-navigable `workspace-file-ref` spans in the static site — prefer wiki page links or plain prose for operator docs.
 
 ## Forgejo CI
 

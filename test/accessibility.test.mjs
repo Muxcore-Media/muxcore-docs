@@ -27,12 +27,10 @@ const ALL_PAGES = [
   "Module-System.html",
   "Module-TLS-Authentication.html",
   "Port-Map.html",
-  "Roadmap.html",
   "Security.html",
   "Spool-and-Marketplace.html",
   "Spool-Security.html",
   "Storage.html",
-  "Tasks.html",
   "Workflow-Engine.html",
   "Writing-Modules.html",
 ];
