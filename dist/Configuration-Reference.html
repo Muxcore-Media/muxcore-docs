@@ -860,8 +860,8 @@
 </tr>
 <tr>
 <td><code>MVP_ADMIN_USER</code> / <code>MVP_ADMIN_PASSWORD</code></td>
-<td><code>admin</code> / <code>admin-dev-only</code></td>
-<td>Dev-only local auth bootstrap — <strong>not for production</strong></td>
+<td><code>admin</code> / <em>(generated)</em></td>
+<td>Local auth bootstrap. No default password: when <code>MVP_ADMIN_PASSWORD</code> is unset, <code>run-host.sh</code> / the installer generates one on first run (printed once, stored 0600 in <code>data/auth/admin.password</code>)</td>
 </tr>
 <tr>
 <td><code>MVP_ENABLE_MEDIA_UI</code></td>
@@ -1081,7 +1081,7 @@ MVP_TV_LIBRARY_ROOT=./data/library/tv
 MVP_DOWNLOADS_DIR=./data/downloads
 MVP_TOKEN_FILE=./run/admin.token
 MVP_ADMIN_USER=admin
-MVP_ADMIN_PASSWORD=admin-dev-only
+# MVP_ADMIN_PASSWORD=   # leave unset to generate one on first run, or set e.g. $(openssl rand -hex 16)
 </code></pre>
 <p>See <a href="Getting-Started.html">Getting Started</a> for install paths and <a href="Deployment.html">Deployment</a> for production TLS (no insecure-disable).</p>
 <hr>

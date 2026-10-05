@@ -288,7 +288,7 @@ These are **client dial targets** for sidecars, smoke scripts, and host tooling.
 | `MVP_TV_LIBRARY_ROOT` | `./data/library/tv` | TV library root |
 | `MVP_DOWNLOADS_DIR` | `./data/downloads` | Download / watch directory (fixture engine writes here) |
 | `MVP_TOKEN_FILE` | `./run/admin.token` | Bearer token written by bootstrap-auth |
-| `MVP_ADMIN_USER` / `MVP_ADMIN_PASSWORD` | `admin` / `admin-dev-only` | Dev-only local auth bootstrap — **not for production** |
+| `MVP_ADMIN_USER` / `MVP_ADMIN_PASSWORD` | `admin` / *(generated)* | Local auth bootstrap. No default password: when `MVP_ADMIN_PASSWORD` is unset, `run-host.sh` / the installer generates one on first run (printed once, stored 0600 in `data/auth/admin.password`) |
 | `MVP_ENABLE_MEDIA_UI` | `1` (`_mvp`) / `0` (installer default) | Whether host stack expects consumer SPA bring-up |
 | `AUTH_GRPC_ADDR` | `127.0.0.1:9403` | `auth-local` gRPC for bootstrap / clients |
 | `AUTH_HTTP_URL` | `http://127.0.0.1:9401` | `auth-local` HTTP |
@@ -373,7 +373,7 @@ MVP_TV_LIBRARY_ROOT=./data/library/tv
 MVP_DOWNLOADS_DIR=./data/downloads
 MVP_TOKEN_FILE=./run/admin.token
 MVP_ADMIN_USER=admin
-MVP_ADMIN_PASSWORD=admin-dev-only
+# MVP_ADMIN_PASSWORD=   # leave unset to generate one on first run, or set e.g. $(openssl rand -hex 16)
 ```
 
 See [Getting Started](Getting-Started) for install paths and [Deployment](Deployment) for production TLS (no insecure-disable).
