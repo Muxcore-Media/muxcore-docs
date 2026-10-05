@@ -110,7 +110,7 @@ Core provides base infrastructure to every module (event bus, registry, storage,
 
 ```
 Module asks: "Who provides secrets?"
-Registry answers: "vault-secrets can do that"
+Registry answers: "secrets-vault can do that"
 Module gets: a SecretsProvider it can use
 ```
 

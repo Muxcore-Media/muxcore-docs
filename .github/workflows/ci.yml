@@ -13,14 +13,9 @@ permissions:
 jobs:
   build:
     name: Build dist
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: Clean runner workspace
-        run: rm -rf "${GITHUB_WORKSPACE}/"* "${RUNNER_TEMP}/"* 2>/dev/null; true
-
-      - uses: Muxcore-Media/mvp/.github/actions/checkout-mirror@main
-        with:
-          token: ${{ secrets.MUXCORE_CI_TOKEN || github.token }}
+      - uses: actions/checkout@v5
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

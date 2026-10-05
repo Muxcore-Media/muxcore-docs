@@ -156,7 +156,7 @@ req := &amp;downloaderv1.AddTorrentRequest{
 <h3>Pattern 2: Discovery, Not Pre-Wiring</h3>
 <p>Core provides base infrastructure to every module (event bus, registry, storage, gRPC mesh). Everything else — secrets, databases, caches, metrics, tracing — modules discover at runtime by asking &quot;who can do X?&quot;</p>
 <pre><code>Module asks: &quot;Who provides secrets?&quot;
-Registry answers: &quot;vault-secrets can do that&quot;
+Registry answers: &quot;secrets-vault can do that&quot;
 Module gets: a SecretsProvider it can use
 </code></pre>
 <p>If someone writes a new type of service tomorrow, modules discover it the same way. Core&#39;s service list never needs to grow.</p>

@@ -1,8 +1,8 @@
 # Getting Started
 
-**Install MuxCore on one laptop from a Forgejo or LAN OCI registry (preferred), release binaries, or the installer.** You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.
+**Install MuxCore on one laptop from a LAN or GHCR OCI registry (preferred), release binaries, or the installer.** You do not need a monorepo of sibling clones, Go, or live pirate indexers to try the media path.
 
-Active product work is tracked in [Tasks](Tasks) → workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md).
+Active product work is tracked in [Tasks](Tasks) → workspace [`MASTER-ROADMAP.md`](https://github.com/Muxcore-Media/umbrella/blob/main/MASTER-ROADMAP.md).
 
 ---
 
@@ -10,13 +10,13 @@ Active product work is tracked in [Tasks](Tasks) → workspace [`MASTER-ROADMAP.
 
 MuxCore is a **loom** (`muxcored`) plus **sidecar modules** (auth, libraries, automation, downloader, UIs). On a laptop, the supported first-run is:
 
-1. Pull prebuilt images from **`MUXCORE_REGISTRY`** (Forgejo `git.zem.systems/muxcore` or a LAN registry) using `_mvp/docker-compose.registry.yml`.
+1. Pull prebuilt images from **`MUXCORE_REGISTRY`** (default `localhost:5000/muxcore` on a LAN registry, or `ghcr.io/muxcore-media`) using `_mvp/docker-compose.registry.yml`.
 2. Start the stack with fixture-friendly defaults (`DOWNLOADER_ENGINE=fixture`).
 3. Log into admin + consumer UI, import or request a fixture title, confirm it appears in the library.
 
 That path is the product gate. Live torrents, Apibay, Real-Debrid, paid TMDB, and paid Usenet are **operator opt-in later** — never required for install or smoke.
 
-GitHub Releases and GHCR are a **deferred public mirror** — not the required download path for household installs (see [Deployment](Deployment#self-hosted-ci-and-local-registry-no-billing-narrative)).
+Source, tags, and GitHub Releases live at `https://github.com/Muxcore-Media`. A LAN registry is the default image source; GHCR publishing is **deferred** until a `write:packages` token exists (see [Deployment](Deployment#ci-and-image-registry)).
 
 ---
 
@@ -26,7 +26,7 @@ GitHub Releases and GHCR are a **deferred public mirror** — not the required d
 |----------|----------|
 | Linux or macOS laptop (amd64 or arm64) | Docker Compose v2 or Podman Compose |
 | Docker / Podman for registry install (Path A) | Go toolchain (only if you build from source) |
-| Network to your Forgejo or LAN registry once | Local Jellyfin for bridge demos |
+| Network to your LAN registry (or GHCR) once | Local Jellyfin for bridge demos |
 
 You do **not** need: sixty sibling git clones, GitHub-hosted Actions minutes, GHCR `write:packages`, VPN, or any pirate site account.
 
@@ -34,7 +34,7 @@ You do **not** need: sixty sibling git clones, GitHub-hosted Actions minutes, GH
 
 ## Path A — Registry install (preferred household)
 
-The supported non-developer path pulls OCI images from **Forgejo or a LAN registry** — no sibling Go clones and no GHCR push scope.
+The supported non-developer path pulls OCI images from **a LAN registry** (or GHCR once published) — no sibling Go clones.
 
 ### Publish images (operator / lab)
 
@@ -43,29 +43,28 @@ From the workspace `_mvp/` tree (or equivalent checkout with `scripts/`):
 ```bash
 cd _mvp
 
-# LAN registry (no Forgejo yet)
+# LAN registry (default MUXCORE_REGISTRY)
 ./scripts/local-registry.sh start
 export MUXCORE_REGISTRY=localhost:5000/muxcore
 ./scripts/publish-muxcored-local.sh v0.5.7
 
-# Forgejo package registry (default MUXCORE_REGISTRY when unset in publish script)
-./scripts/publish-muxcored-local.sh v0.5.7
-# default: git.zem.systems/muxcore
+# GHCR (deferred; needs a token with write:packages)
+# export MUXCORE_REGISTRY=ghcr.io/muxcore-media
 ```
 
 `MUXCORE_REGISTRY` must match on **publish and install** hosts. Tag module images (`api-rest`, `auth-local`, …) under the same prefix with `scripts/publish-module-images.sh`.
 
-Forgejo login (when pushing to origin):
+GHCR login (only when pushing to `ghcr.io/muxcore-media`):
 
 ```bash
-echo "$FORGEJO_TOKEN" | podman login git.zem.systems -u <user> --password-stdin
+echo "$GITHUB_TOKEN" | podman login ghcr.io -u <github-user> --password-stdin
 ```
 
 ### Install (primary)
 
 ```bash
 cd _mvp
-export MUXCORE_REGISTRY=localhost:5000/muxcore   # or git.zem.systems/muxcore
+export MUXCORE_REGISTRY=localhost:5000/muxcore   # or ghcr.io/muxcore-media
 export MUXCORE_IMAGE_TAG=v0.5.7
 export DOWNLOADER_ENGINE=fixture
 docker compose -f docker-compose.registry.yml pull
@@ -83,17 +82,17 @@ Default operator URLs (see [Port Map](Port-Map)):
 
 Full operator doc: [`_mvp/docs/PUBLIC-INSTALL.md`](../_mvp/docs/PUBLIC-INSTALL.md).
 
-**Deferred:** public `ghcr.io/muxcore-media/*` mirror via `_mvp/docker-compose.ghcr.yml` — requires GitHub `write:packages`; use Forgejo/LAN until that scope exists.
+**Deferred:** publishing to `ghcr.io/muxcore-media/*` — requires GitHub `write:packages`; use the LAN registry until that scope exists. The same compose file works with either registry via `MUXCORE_REGISTRY`.
 
 ---
 
 ## Path B — Installer or manual release binaries
 
-The **`muxcore-installer`** TUI (see [Tasks](Tasks)) can fetch pinned release tarballs when registry images are unavailable. **GitHub Releases** remain an optional public mirror for binaries — not the origin gate for household compose.
+The **`muxcore-installer`** TUI (see [Tasks](Tasks)) can fetch pinned release tarballs when registry images are unavailable. Binaries come from **GitHub Releases** at `https://github.com/Muxcore-Media/<repo>/releases`.
 
 When available the installer:
 
-1. Downloads pinned `muxcored` + module release assets (Forgejo origin preferred; GitHub mirror when published).
+1. Downloads pinned `muxcored` + module release assets from GitHub Releases.
 2. Creates a local data dir, `.env`, and TLS-off-dev defaults for laptop use.
 3. Bootstraps an `auth-local` admin user and prints the password once.
 4. Starts the stack via Compose **or** host binaries.
@@ -107,17 +106,17 @@ Typical shape (exact flags land with the installer release):
 # Follow printed VIEW-ME.txt for admin / consumer URLs
 ```
 
-### Manual release binaries (mirror path)
+### Manual release binaries
 
 ```bash
 mkdir -p ~/muxcore/{bin,data,run}
 cd ~/muxcore
-# Download muxcored + module tarballs from GitHub Releases or Forgejo release assets
+# Download muxcored + module tarballs from GitHub Releases
 chmod +x bin/muxcored
 ./bin/muxcored --help
 ```
 
-Prefer **Path A** (registry compose) for homelab household installs. Use **Path B** when you already manage release tarballs yourself. The developer lab in `_mvp/` (sibling builds) is not the end-user path.
+Prefer **Path A** (registry compose) for household installs. Use **Path B** when you already manage release tarballs yourself. The developer lab in `_mvp/` (sibling builds) is not the end-user path.
 
 ---
 
@@ -197,7 +196,7 @@ Operator URLs after host up: `_mvp/run/VIEW-ME.txt`. Treat `_mvp` as upstream fo
 | TMDB network / API key | No (`TMDB_FIXTURE=1`) | Optional real key |
 | VPN | No | Recommended if you opt in |
 
-Live acquisition remains available for operators who explicitly enable it. It is **never** a CI gate, install prerequisite, or “Getting Started” requirement. See [Tasks](Tasks) and workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) for constraints.
+Live acquisition remains available for operators who explicitly enable it. It is **never** a CI gate, install prerequisite, or “Getting Started” requirement. See [Tasks](Tasks) and workspace [`MASTER-ROADMAP.md`](https://github.com/Muxcore-Media/umbrella/blob/main/MASTER-ROADMAP.md) for constraints.
 
 ### Default knobs
 
@@ -269,7 +268,7 @@ For a real host (not unit tests):
 1. Prefer mTLS (`MUXCORE_GRPC_MTLS_ENABLED=true` / `grpc.mtls_enabled` in config). See [Module TLS Authentication](Module-TLS-Authentication) and [Deployment](Deployment#mtls-and-certificate-management).
 2. Never leave `MUXCORE_INSECURE_DISABLE_TLS=true` on staging or production processes.
 3. When using auth-local / auth-oidc behind a reverse proxy, split URLs:
-   - **Public (browser):** e.g. `https://auth.zem.systems` (`AUTH_HTTP_URL` / `ADMIN_UI_AUTH_ADDR`)
+   - **Public (browser):** e.g. `https://auth.media.example.com` (`AUTH_HTTP_URL` / `ADMIN_UI_AUTH_ADDR`)
    - **Internal (code exchange):** e.g. `http://127.0.0.1:9401` (`AUTH_HTTP_INTERNAL_URL` / `ADMIN_UI_AUTH_INTERNAL_ADDR`)
 
 Full operator checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md).
@@ -279,5 +278,5 @@ Full operator checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.m
 - [Fixture-first acquisition](#fixture-first-acquisition) — already above; share with anyone tempted to “just hit Apibay for the demo”
 - [Core Concepts](Core-Concepts) — loom, threads, signals
 - [Deployment](Deployment) — single laptop → cluster; self-hosted CI + local registry
-- [Tasks](Tasks) — stub to [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md)
+- [Tasks](Tasks) — stub to [`MASTER-ROADMAP.md`](https://github.com/Muxcore-Media/umbrella/blob/main/MASTER-ROADMAP.md)
 - [Module System](Module-System) — what each sidecar does

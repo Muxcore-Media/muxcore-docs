@@ -1,6 +1,6 @@
 # AGENTS.md — muxcore-docs
 
-Static HTML site built from committed wiki markdown in `./wiki/`. Origin CI is Forgejo (`.forgejo/workflows/ci.yml`); `.github/workflows/pages.yml` is an optional public GitHub Pages consumer only — not the merge gate.
+Static HTML site built from committed wiki markdown in `./wiki/`. CI is GitHub Actions (`.github/workflows/ci.yml`, `ubuntu-latest`). `.github/workflows/pages.yml` (GitHub Pages) is `workflow_dispatch`-only because Pages on private repos needs a paid plan.
 
 ## Wiki source
 
@@ -23,10 +23,10 @@ Use `nix-shell -p nodejs --run 'cd muxcore-docs && npm ci && npm test'` when Nod
 
 ## Content policy
 
-- **Roadmap / Tasks wiki pages** are stubs pointing at workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md). Do not maintain parallel checkbox lists in the wiki.
+- **Roadmap / Tasks wiki pages** are stubs pointing at [`MASTER-ROADMAP.md`](https://github.com/Muxcore-Media/umbrella/blob/main/MASTER-ROADMAP.md). Do not maintain parallel checkbox lists in the wiki.
 - After material platform milestones, update Getting Started, Deployment, Security, Port Map, and Configuration Reference here; then rebuild `dist/`.
 - Workspace path links (`../TASKS.md`, `../_mvp/…`) become non-navigable `workspace-file-ref` spans in the static site — prefer wiki page links or plain prose for operator docs.
 
-## Forgejo CI
+## GitHub Actions CI
 
-Workflow: `.forgejo/workflows/ci.yml` — `runs-on: native`, Node 22, `npm ci`, `make build`, `npm test`, uploads `dist/` artifact.
+Workflow: `.github/workflows/ci.yml` — `runs-on: ubuntu-latest`, `actions/checkout@v5`, Node 22, `npm ci`, `make build`, `npm test`, uploads `dist/` artifact.

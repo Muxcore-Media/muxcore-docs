@@ -1,8 +1,9 @@
 name: Deploy Pages
 
+# GitHub Pages on a private repository requires a paid GitHub plan, so this
+# workflow only runs when triggered manually (workflow_dispatch). Re-enable the
+# push trigger if the repository becomes public or the plan is upgraded.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

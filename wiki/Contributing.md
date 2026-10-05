@@ -1,6 +1,6 @@
 # Contributing to MuxCore
 
-**Thank you for considering contributing to MuxCore.** Origin development runs on **Forgejo** (`git.zem.systems`); GitHub clone/PR/wiki-push is the optional public consumer path later.
+**Thank you for considering contributing to MuxCore.** Development happens on GitHub at `https://github.com/Muxcore-Media`: clone, open PRs, and file issues there.
 
 ---
 
@@ -10,17 +10,16 @@
 
 - **Go 1.26.x** (see `go.mod`; currently `go 1.26.4`)
 - **protoc** + **protoc-gen-go** + **protoc-gen-go-grpc** (for proto changes)
-- **git** + SSH access to Forgejo
+- **git** and a GitHub account
 
-### Clone and Build (origin)
+### Clone and Build
 
 ```bash
-git clone ssh://forgejo@git.zem.systems:2222/muxcore/core.git
+git clone https://github.com/Muxcore-Media/core.git
 cd core
 
 export GOPRIVATE='github.com/Muxcore-Media/*'
 export GONOSUMDB='github.com/Muxcore-Media/*'
-git config --global url."ssh://forgejo@git.zem.systems:2222/muxcore/".insteadOf "https://github.com/Muxcore-Media/"
 
 go build ./...
 ```
@@ -33,7 +32,7 @@ make test
 make ci
 ```
 
-Origin CI: `.forgejo/workflows/ci.yml` with `runs-on: native` on the vault Forgejo runner. Do **not** treat `.github/workflows/` as the merge gate.
+CI: `.github/workflows/ci.yml` on GitHub Actions (`runs-on: ubuntu-latest`); it is the merge gate.
 
 ### Lint
 
@@ -90,7 +89,7 @@ Before adding a new contract to `pkg/contracts/`:
 
 Modules are standalone binaries, not compile-time imports. See [Writing Modules](Writing-Modules) for the sidecar pattern. Reference implementation: [downloader-native-torrent](https://github.com/Muxcore-Media/downloader-native-torrent).
 
-Each module repo carries its own `.forgejo/workflows/ci.yml` (`runs-on: native`).
+Each module repo carries its own `.github/workflows/ci.yml`.
 
 ---
 
@@ -126,7 +125,7 @@ Examples:
 
 ### Review
 
-All PRs require review. Forgejo CI must pass (build + test + lint). Doc-only PRs still require CI green.
+All PRs require review. GitHub Actions CI must pass (build + test + lint). Doc-only PRs still require CI green.
 
 ### Merging
 
@@ -138,12 +137,12 @@ Squash-merge to `master`. Branch protection requires PRs, blocks force push, blo
 
 ### Wiki (`muxcore-docs`)
 
-Committed wiki markdown lives in **`muxcore-docs/wiki/`** in the umbrella workspace (or the `muxcore/muxcore-docs` Forgejo repo). When adding or changing a feature:
+Committed wiki markdown lives in **`muxcore-docs/wiki/`** in the umbrella workspace (or the `Muxcore-Media/muxcore-docs` GitHub repo). When adding or changing a feature:
 
 1. Update the relevant wiki page under `muxcore-docs/wiki/`
 2. If it's a new contract, add it to the Contracts page
 3. If it's a new config option, add it to the Configuration Reference
-4. Point Roadmap/Tasks stubs at workspace [`MASTER-ROADMAP.md`](../MASTER-ROADMAP.md) — do not maintain parallel checkbox lists
+4. Point Roadmap/Tasks stubs at workspace [`MASTER-ROADMAP.md`](https://github.com/Muxcore-Media/umbrella/blob/main/MASTER-ROADMAP.md) — do not maintain parallel checkbox lists
 
 Rebuild the static site: `cd muxcore-docs && npm ci && make build && npm test`.
 

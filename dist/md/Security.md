@@ -305,7 +305,7 @@ On the MuxCore MVP host:
 
 - **Do not** set `MUXCORE_INSECURE_DISABLE_TLS=true` on staging/production. Dev/unit tests may still use it locally.
 - Staging cutover checklist: [`_mvp/tls/MTLS-STAGING.md`](../_mvp/tls/MTLS-STAGING.md) (`muxcore.staging.json` + `run-host-staging.sh`).
-- **Auth URL split:** browsers use the public auth base (e.g. `https://auth.zem.systems`); server-side code exchange uses the internal base (e.g. `http://127.0.0.1:9401`). Never point admin-ui auth vars at the admin UI port itself.
+- **Auth URL split:** browsers use the public auth base (e.g. `https://auth.media.example.com`); server-side code exchange uses the internal base (e.g. `http://127.0.0.1:9401`). Never point admin-ui auth vars at the admin UI port itself.
 
 ### Phase 2 / 3 identity & SIEM status
 
