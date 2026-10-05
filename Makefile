@@ -6,12 +6,11 @@ build:
 clean:
 	rm -rf dist
 
-# Optional: copy ../core.wiki into ./wiki (legacy GitHub wiki checkout)
+# Push ./wiki into a core.wiki checkout (wiki/ is the source of truth).
+# Usage: make sync-wiki [CORE_WIKI=../core.wiki]; drift check: scripts/sync-core-wiki.sh --check <path>
+CORE_WIKI ?= ../core.wiki
 sync-wiki:
-	@test -f ../core.wiki/Home.md || (echo "missing ../core.wiki"; exit 1)
-	mkdir -p wiki
-	cp ../core.wiki/*.md wiki/
-	@echo "synced wiki/ from ../core.wiki (review before commit)"
+	./scripts/sync-core-wiki.sh $(CORE_WIKI)
 
 serve: build
 	@echo "Serving dist/ on http://127.0.0.1:8080"

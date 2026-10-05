@@ -17,8 +17,8 @@ npx --yes serve dist -l 8080
 # or: python3 -m http.server -d dist 8080
 ```
 
-Build prefers `../core.wiki` when present and syncs into `./wiki/`; otherwise uses the
-committed `./wiki/` snapshot so CI and clones work standalone.
+Build reads the committed `./wiki/` (the source of truth) so CI and clones work standalone.
+Set `MUXCORE_DOCS_WIKI` to build from another directory.
 
 ## Layout
 
@@ -28,10 +28,10 @@ committed `./wiki/` snapshot so CI and clones work standalone.
 | `site/style.css` | Shared stylesheet |
 | `build.mjs` | Markdown → HTML |
 | `dist/` | Generated site (`index.html` = Home) |
-| `.github/workflows/ci.yml` | Self-hosted build + artifact upload |
+| `.github/workflows/ci.yml` | GitHub-hosted build + artifact upload |
 
 ## Update content
 
-1. Edit the wiki (`core` wiki or local `../core.wiki`).
-2. `make sync-wiki` (or just `make build` — it syncs automatically).
+1. Edit `wiki/` in this repo (the working copy).
+2. Publish to the GitHub wiki checkout: `make sync-wiki CORE_WIKI=../core.wiki` (or `scripts/sync-core-wiki.sh <core.wiki path>`); verify with `scripts/sync-core-wiki.sh --check <core.wiki path>` (non-zero on drift).
 3. Commit updated `wiki/` and `dist/` if you want the repo to serve offline without a rebuild.

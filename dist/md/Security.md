@@ -103,7 +103,7 @@ Core’s auth interceptor deny-by-defaults **except** a fixed public allowlist: 
 Every significant action is recorded:
 
 ```
-[2026-05-26 14:32:01] user:ender action:media.request resource:"The Terminator" trace:abc123
+[2026-05-26 14:32:01] user:alice action:media.request resource:"The Terminator" trace:abc123
 [2026-05-26 14:32:05] system action:workflow.started resource:movie-request trace:abc123
 [2026-05-26 14:32:45] module:downloader-native-torrent action:download.started resource:torrent:xyz trace:abc123
 [2026-05-26 15:45:12] module:media-movies action:library.item.added resource:"The Terminator" trace:abc123
